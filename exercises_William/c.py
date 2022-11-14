@@ -165,9 +165,9 @@ plt.show()
 ###############
 val = net(x_valid)
 size = 0.1
-plt.scatter(x_train.detach().numpy().flatten(), targets_train.detach().numpy().flatten(),
+plt.scatter(x.detach().numpy().flatten(), targets_train[:x.shape[0]].detach().numpy().flatten(),
             s=size)
-plt.scatter(x_train.detach().numpy().flatten(), val.detach().numpy().flatten(),
+plt.scatter(x_valid.detach().numpy().flatten(), val.detach().numpy().flatten(),
             s=size)
 plt.title('Train data')
 plt.show()
@@ -176,7 +176,7 @@ plt.show()
 
 ###############
 x_out = np.random.default_rng().uniform(0,5,10000)
-target = sin(x_out)
+target = np.sin(x_out)
 x_out = torch.from_numpy(x_out)
 x_out = x_out.float().reshape(len(x_out),1)
 
