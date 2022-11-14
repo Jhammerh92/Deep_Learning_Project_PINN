@@ -36,7 +36,7 @@ def f(x, t):
 
 
 num_points = 1000
-xs = np.linspace(-1,1,num_points)[1:-1]
+xs = np.linspace(0,1,num_points)[1:-1]
 xs = torch.tensor(xs[torch.randperm(len(xs))],requires_grad=True).float()
 ts = np.linspace(0,1,num_points)[1:]
 ts = torch.tensor(ts[torch.randperm(len(ts))],requires_grad=True).float()
@@ -48,7 +48,7 @@ ic_points_t = torch.zeros(ic_points_x.shape).float()
 
 num_bc_points = 1000
 bc_points_x = torch.cat(
-                (torch.ones(num_bc_points)*(-1),
+                (torch.ones(num_bc_points)*(0),
                  torch.ones(num_bc_points)))
                  
 bc_points_t = torch.cat(
@@ -120,7 +120,7 @@ net = Net(num_hidden, num_features, num_output)
 optimizer = optim.Adam(net.parameters(), lr=0.01)
 criterion = nn.MSELoss()
 
-num_epochs = 200
+num_epochs = 100
 x_train = xs #reshape(len(domain_points),2)
 
 get_slice = lambda i, size: range(i * size, (i + 1) * size)
@@ -217,7 +217,7 @@ for epoch in range(num_epochs):
 vals = []
 
 ts_plot = np.linspace(0,1,1000)
-xs_plot = np.linspace(-1,1, 1000)
+xs_plot = np.linspace(0,1, 1000)
 for xs_val in xs_plot:
     u_val = u_np(ts_plot, xs_val)
     vals.append(u_val)
@@ -236,29 +236,32 @@ nn_input_x = torch.tensor(nn_input_x).float()
 
 
 #################
-
+plt.figure()
 plt.imshow(vals, cmap='hot', interpolation='nearest')
 plt.title('Exact result')
-plt.show()
+# plt.show()
 i = 1
+plt.figure()
 # plt.scatter(xs_plot, vals[:,i])
 plt.scatter(xs_plot, vals[0,:])
 plt.scatter(xs_plot, vals[100,:])
 plt.scatter(xs_plot, vals[999,:])
 plt.title(f'Slice {i}')
-plt.show()
+# plt.show()
 
 ######
+plt.figure()
 nn_output = net(nn_input_x, nn_input_t)
 
 plt.imshow(nn_output.reshape(1000,1000).detach(), cmap='hot', interpolation='nearest')
 plt.title('Network result')
-plt.show()
 
 ########
 # Net single slice
 
+plt.figure()
 nn_output = net(nn_input_x, torch.zeros(nn_input_x.shape))
 plt.scatter(nn_input_x, nn_output.detach())
 
+plt.show()
 
