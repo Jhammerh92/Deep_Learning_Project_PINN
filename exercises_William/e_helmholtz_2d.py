@@ -91,7 +91,7 @@ net = Net(num_hidden, num_features, num_output)
 optimizer = optim.Adam(net.parameters(), lr=0.01)
 criterion = nn.MSELoss()
 
-num_epochs = 3000
+num_epochs = 200
 x_train = xs #reshape(len(domain_points),2)
 
 get_slice = lambda i, size: range(i * size, (i + 1) * size)
@@ -173,8 +173,10 @@ for epoch in range(num_epochs):
         
     # if epoch%100==0:
     print("Epoch %2i : Train Loss %f" % (
-            epoch+1, losses[-1]))
+            epoch+1, losses[-1]), end='\r')
     
+print("Done Training")
+
 num_points = 100
 xs = np.linspace(0,1,num_points)
 ys = np.linspace(0,1,num_points)

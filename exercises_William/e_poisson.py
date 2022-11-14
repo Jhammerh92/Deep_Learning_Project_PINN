@@ -163,5 +163,5 @@ plt.scatter(x_train.detach().numpy().flatten(),
             s=size, label='Network')
 plt.title('Train data')
 plt.legend()
-# plt.show()
+plt.show()
 ###############

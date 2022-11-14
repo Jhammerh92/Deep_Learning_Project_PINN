@@ -225,10 +225,11 @@ for lambd_val in lambds_plot:
 
 vals = np.array(vals)
 
+plt.figure()
 # plt.scatter(ts_plot, u_plot)
 plt.imshow(vals, cmap='hot', interpolation='nearest')
 plt.title('Exact result')
-plt.show()
+# plt.show()
 
 nn_input_t = []
 nn_input_lambd = []
@@ -242,6 +243,9 @@ nn_input_lambd = torch.tensor(nn_input_lambd).float()
 
 nn_output = net(nn_input_t, nn_input_lambd)
 
+plt.figure()
 plt.imshow(nn_output.reshape(1000,1000).detach().T, cmap='hot', interpolation='nearest')
 plt.title('Network result')
+
+
 plt.show()
