@@ -228,13 +228,14 @@ for xs_val in xs_plot:
 
 vals = np.array(vals)
 
+plt.figure()
 plt.imshow(vals, cmap='hot', interpolation='nearest')
 plt.title('Exact result')
 plt.show()
 i = 1
 plt.scatter(xs_plot, vals[:,i])
 plt.title(f'Slice {i}')
-plt.show()
+# plt.show()
 
 nn_input_t = []
 nn_input_x = []
@@ -247,9 +248,10 @@ nn_input_t = torch.tensor(nn_input_t).float()
 nn_input_x = torch.tensor(nn_input_x).float()
 
 nn_output = net(nn_input_x, nn_input_t)
-
+plt.figure()
 plt.imshow(nn_output.reshape(1000,1000).detach().T, cmap='hot', interpolation='nearest')
 plt.title('Network result')
+
 plt.show()
 
 nn_output.reshape(1000,1000)[:,1]

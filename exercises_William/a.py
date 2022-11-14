@@ -157,10 +157,11 @@ plt.plot(epoch, train_acc, 'r', epoch, valid_acc, 'b')
 plt.legend(['Train Accucary','Validation Accuracy'])
 plt.xlabel('Updates'), plt.ylabel('Acc')
 
-plt.show()
+# plt.show()
 
 
 ###############
+plt.figure()
 val = net(x_valid)
 size = 0.1
 plt.scatter(x_train.detach().numpy().flatten(), targets_train.detach().numpy().flatten(),
@@ -168,10 +169,11 @@ plt.scatter(x_train.detach().numpy().flatten(), targets_train.detach().numpy().f
 plt.scatter(x_train.detach().numpy().flatten(), val.detach().numpy().flatten(),
             s=size)
 plt.title('Train data')
-plt.show()
+# plt.show()
 ###############
 
 
+plt.figure()
 ###############
 x_out = np.random.default_rng().uniform(0,5,10000)
 x_out = torch.from_numpy(x_out)
@@ -185,4 +187,6 @@ plt.scatter(x_out.detach().numpy().flatten(), target.flatten(),
 plt.scatter(x_out.detach().numpy().flatten(), val.detach().numpy().flatten(),
             s=size)
 plt.title('Outside of domain')
+
+plt.show()
 ###############
