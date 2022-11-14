@@ -34,7 +34,8 @@ x_valid = torch.tensor(x_valid, requires_grad=True)
 targets_train = sin(x)
 targets_valid = sin(x_valid)
 
-targets_train.backward(torch.ones_like(targets_train))
+targets_train.backward(torch.ones_like(targets_train),
+                       retain_graph=True)
 xgrad = x.grad
 targets_train = torch.cat((targets_train,xgrad))
 
@@ -85,8 +86,8 @@ optimizer = optim.SGD(net.parameters(), lr=0.01)
 criterion = nn.MSELoss()
 
 num_epochs = 500
-x_train = x.reshape(len(x),1)
-x_valid = x_valid.reshape(len(x_valid), 1)
+x_train = x.reshape(len(x),1).float()
+x_valid = x_valid.reshape(len(x_valid), 1).float()
 get_slice = lambda i, size: range(i * size, (i + 1) * size)
 num_samples_train = len(x_train)
 batch_size = 10
@@ -112,10 +113,10 @@ for epoch in range(num_epochs):
         
         # compute gradients given loss
         target_batch = targets_train[slce]
-        target_batch = target_batch.reshape(len(target_batch), 1)
+        target_batch = target_batch.reshape(len(target_batch), 1).float()
         # target_batch = sin(x_train[slce])
         batch_loss = criterion(output, target_batch)
-        batch_loss.backward()
+        batch_loss.backward(retain_graph=True)
         optimizer.step()
         
         cur_loss += batch_loss   
@@ -128,7 +129,7 @@ for epoch in range(num_epochs):
         slce = get_slice(i, batch_size)
         output = net(x_train[slce])
         
-        train_targs += list(targets_train[slce].numpy())
+        train_targs += list(targets_train[slce].detach().numpy())
         train_preds += list(output.detach().numpy())
     
     ### Evaluate validation
@@ -137,7 +138,7 @@ for epoch in range(num_epochs):
         slce = get_slice(i, batch_size)
         
         output = net(x_valid[slce])
-        val_targs += list(targets_valid[slce].numpy())
+        val_targs += list(targets_valid[slce].detach().numpy())
         val_preds += list(output.data.numpy())
         
     train_err_cur = np.sqrt(metrics.mean_squared_error(np.array(train_targs), 
