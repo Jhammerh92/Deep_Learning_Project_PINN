@@ -27,32 +27,35 @@ def u_np(x, t):
 def f(x, t):
     return - torch.exp(t)*(torch.sin(torch.pi*x)-torch.pi**2*torch.sin(torch.pi*x))
 
-C = 1
+C = 1.0
 
-num_points = 100
-xs = np.linspace(-1,1,num_points)[1:-1]
+num_points = 1000
+
+x_start, x_end = 0, 1
+
+xs = np.linspace(x_start,x_end,num_points)[1:-1]
 xs = torch.tensor(xs[torch.randperm(len(xs))],requires_grad=True).float()
 ts = np.linspace(0,1,num_points)[1:]
 ts = torch.tensor(ts[torch.randperm(len(ts))],requires_grad=True).float()
 
-num_ic_points = 10
+num_ic_points = 100
 # ic_points_x = torch.tensor(np.linspace(-1,1,num_points)).float()
-ic_points_x = torch.tensor(np.linspace(0,1,num_points)).float()
+ic_points_x = torch.tensor(np.linspace(x_start,x_end,num_points)).float()
 ic_points_t = torch.zeros(ic_points_x.shape).float()
 
-num_bc_points = 10
+num_bc_points = 100
 bc_points_x = torch.cat(
-                (torch.ones(num_bc_points)*(-1),
-                 torch.ones(num_bc_points)))
+                (torch.ones(num_bc_points)*x_start,
+                 torch.ones(num_bc_points)*x_end))
                  
 bc_points_t = torch.cat(
                 (torch.tensor(np.linspace(0,1,num_bc_points)).float(),
                 torch.tensor(np.linspace(0,1,num_bc_points)).float()))
 
-op_x = np.linspace(-1,1,10)
-op_x = torch.tensor(op_x, requires_grad=True)
-op_t = np.ones(10)
-op_t = torch.tensor(op_t, requires_grad=True)
+op_x = np.linspace(x_start,x_end,100)
+op_x = torch.tensor(op_x, requires_grad=True).float()
+op_t = np.ones(100)
+op_t = torch.tensor(op_t, requires_grad=True).float()
 observed_points = u(op_x, op_t)
 
 class Net(nn.Module):
@@ -110,11 +113,19 @@ class Net(nn.Module):
         x = F.linear(x, self.W_3, self.b_3)
         # x = self.activation(x)
         return x
-    
+
+
+
 # num_hidden, num_features, num_output = 50, 2, 1
 num_hidden, num_features, num_output = 50, 2, 1
 
 net = Net(num_hidden, num_features, num_output)
+
+# register C as a parameter
+C = torch.tensor([C], requires_grad=True).float() 
+C = nn.Parameter(C)
+net.register_parameter('C', C)  
+
 
 optimizer = optim.Adam(net.parameters(), lr=0.01)
 criterion = nn.MSELoss()
@@ -156,7 +167,7 @@ for epoch in range(num_epochs):
         uxx = calc_grad(x_batch, ux)
 
         # lhs_pde = - ut - c*ux
-        lhs_pde = ut - C*uxx
+        lhs_pde = ut - net.C*uxx
         
         bc_output = net(bc_points_x, bc_points_t)
         bc_output = bc_output.reshape(bc_output.shape[0])
@@ -164,22 +175,29 @@ for epoch in range(num_epochs):
         ic_output = net(ic_points_x, ic_points_t)
         ic_output = ic_output.reshape(ic_output.shape[0])
         
-        output = torch.cat((lhs_pde, bc_output, ic_output))
+        op_output = net(op_x, op_t)
+        op_output = op_output.reshape(op_output.shape[0])
+        
+        output = torch.cat((lhs_pde, 
+                            bc_output, 
+                            ic_output,
+                            op_output))
         
         # compute gradients given loss
         # domain_target = f(x_batch, t_batch)
-        domain_target = torch.zeros(lhs_pde.shape)
+        domain_target = f(x_batch, t_batch)
         bc_target = u_bc(bc_points_t)
         ic_target = u_ic(ic_points_x)
         
         target_batch = torch.cat((domain_target,
                                   bc_target,
-                                  ic_target))
+                                  ic_target,
+                                  observed_points))
         
         batch_loss = criterion(output.flatten(), 
                                target_batch.flatten(),
                                )
-        batch_loss.backward()#retain_graph=True)
+        batch_loss.backward(retain_graph=True)
         
         optimizer.step()
         
@@ -216,7 +234,7 @@ for epoch in range(num_epochs):
 vals = []
 
 ts_plot = np.linspace(0,1,1000)
-xs_plot = np.linspace(-1,1, 1000)
+xs_plot = np.linspace(x_start,x_end, 1000)
 for xs_val in xs_plot:
     u_val = u_np(ts_plot, xs_val)
     vals.append(u_val)
