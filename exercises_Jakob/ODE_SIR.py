@@ -2,6 +2,8 @@ from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 import numpy as np
 
+raise Exception('Script has been moved to DINN_implementation folder :)')
+
 def vectorfield(w, t, p):
     """
     Defines the differential equations for the coupled spring-mass system.
