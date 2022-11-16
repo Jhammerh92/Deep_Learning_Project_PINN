@@ -55,7 +55,7 @@ class ODESolver:
         # Call the ODE solver.
         wsol = odeint(self._SIRD_vectorfield, w0, t, args=(p,),
                       atol=abserr, rtol=relerr)
-        return t, wsol
+        return t, wsol, N
     
     def plot_SIRD(self, t, wsol):
         print("total ",(wsol[-1,:]) )
