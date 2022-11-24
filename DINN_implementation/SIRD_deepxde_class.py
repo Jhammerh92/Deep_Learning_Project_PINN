@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Nov 20 11:39:05 2022
-
-@author: willi
-"""
 import deepxde as dde
 import numpy as np
 import torch
@@ -35,29 +29,42 @@ class Plot:
         
         self.plot_future_prediction(axes[1])
     
-    def plot_known_data(self, ax):
+    def _plot_known_synthetic(self, ax):
         colors = self.colors
-        ax.set_title('Known data')
         line = ax.plot(self.model.t, self.model.wsol)
         line[0].set_label('Synthetic')
-        self._set_color(line, colors)
-        
-        line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best, linestyle='--')
+        self._set_color(line, self.colors)
+    
+    def _plot_known_nn(self, ax, linestyle='--'):
+        line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best, linestyle=linestyle)
         line[0].set_label('PINN prediction')
-        self._set_color(line, colors)
+        self._set_color(line, self.colors)
+    
+    def plot_known_data(self, ax):
+        ax.set_title('Known data')
+        
+        self._plot_known_synthetic(ax)
+        
+        self._plot_known_nn(ax)
         
         ax.legend()
-        
-    def plot_future_prediction(self, ax):
-        colors = self.colors
-        ax.set_title('Future prediction')
-
+    
+    def _plot_pred_synthetic(self, ax):
         line = ax.plot(self.model.t_synth, self.model.wsol_synth)
         line[0].set_label('Synthetic')
-        self._set_color(line, colors)
-        line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth, linestyle='--')
-        self._set_color(line, colors)
+        self._set_color(line, self.colors)
+    
+    def _plot_pred_nn(self, ax, linestyle='--'):
+        line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth, linestyle=linestyle)
         line[0].set_label('Prediction')
+        self._set_color(line, self.colors)
+    
+    def plot_future_prediction(self, ax):
+        ax.set_title('Future prediction')
+
+        self._plot_pred_synthetic(ax)
+        
+        self._plot_pred_nn(ax)
         
         ax.legend()
     
@@ -89,8 +96,12 @@ class SIRD_deepxde_net:
                    dR_t - beta*I,
                    dD_t - gamma*I]
         
-        def boundary(_, on_initial):
-            return on_initial
+        def boundary(t_inp, on_initial):
+            return on_initial and np.isclose(t_inp[0], t[0])
+        
+        def boundary_right(t_inp, on_final):
+            # print(t[-1])
+            return on_final and np.isclose(t_inp[0], t[-1])
         
         # Initial conditions
         ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
@@ -99,10 +110,29 @@ class SIRD_deepxde_net:
         ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=3)
         
         # Test points
+        # TODO - how do we weight right points higher than earlier points?
         observe_S = dde.icbc.PointSetBC(t.reshape(len(t), 1), S_sol.reshape(len(S_sol), 1), component=0)
         observe_I = dde.icbc.PointSetBC(t.reshape(len(t), 1), I_sol.reshape(len(I_sol), 1), component=1)
         observe_R = dde.icbc.PointSetBC(t.reshape(len(t), 1), R_sol.reshape(len(R_sol), 1), component=2)
         observe_D = dde.icbc.PointSetBC(t.reshape(len(t), 1), D_sol.reshape(len(D_sol), 1), component=3)
+        
+        # Final conditions
+        # TODO - we want to use cauchy BC (I think :) )
+        # find derivative using finite differences
+        fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
+        fc_I = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
+        fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=2)
+        fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=3)
+        
+        S_diff = (S_sol[-1] - S_sol[-2]) / (t[-1] - t[-2])
+        I_diff = (I_sol[-1] - I_sol[-2]) / (t[-1] - t[-2])
+        R_diff = (R_sol[-1] - R_sol[-2]) / (t[-1] - t[-2])
+        D_diff = (D_sol[-1] - D_sol[-2]) / (t[-1] - t[-2])
+        
+        fc_n_S = dde.NeumannBC(timedomain, lambda X: torch.tensor(S_diff).reshape(1,1), boundary_right, component=0)
+        fc_n_I = dde.NeumannBC(timedomain, lambda X: torch.tensor(I_diff).reshape(1,1), boundary_right, component=1)
+        fc_n_R = dde.NeumannBC(timedomain, lambda X: torch.tensor(R_diff).reshape(1,1), boundary_right, component=2)
+        fc_n_D = dde.NeumannBC(timedomain, lambda X: torch.tensor(D_diff).reshape(1,1), boundary_right, component=3)
         
         self.data = dde.data.PDE(
             timedomain,
@@ -110,6 +140,8 @@ class SIRD_deepxde_net:
             [ic_S, ic_I, ic_R, ic_D, 
              observe_S, observe_I,
              observe_R,observe_D
+            ,fc_S, fc_I, fc_R, fc_D
+            ,fc_n_S, fc_n_I, fc_n_R, fc_n_D
              ],
             num_domain=50,
             num_boundary=10,
@@ -132,8 +164,12 @@ class SIRD_deepxde_net:
         
         self.model = dde.Model(self.data, net)
         
-        self.model.compile(optimizer, lr=lr, #metrics=["l2 relative error"], 
-                      external_trainable_variables=self.variables)
+        self.model.compile(optimizer, lr=lr 
+                           # ,metrics=["l2 relative error"]
+                           ,loss="MSE"
+                           ,external_trainable_variables=self.variables
+                           #,loss_weights=[0.5,0.5,0.5,0.5,1,1,1,1]
+                      )
         
         self.variable = dde.callbacks.VariableValue(self.variables, period=print_every)
     
