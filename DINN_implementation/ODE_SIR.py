@@ -57,6 +57,9 @@ class ODESolver:
                       atol=abserr, rtol=relerr)
         return t, wsol, N
     
+    def add_noise(self, array, loc=0.0, scale=1.0):
+        return array + np.random.normal(loc=loc,scale=scale, size = array.shape)
+    
     def plot_SIRD(self, t, wsol):
         print("total ",(wsol[-1,:]) )
         print("total ",np.sum(wsol[-1,:]) )
@@ -64,4 +67,13 @@ class ODESolver:
         plt.figure()
         plt.plot(t, wsol)
         plt.legend(['S', 'I', 'R', 'D'])
+        plt.show()
+        
+    def plot_SIRD_scatter(self, t, wsol):
+        plt.figure()
+        plt.scatter(t, wsol[:,0],label='S')
+        plt.scatter(t, wsol[:,1],label='I')
+        plt.scatter(t, wsol[:,2],label='R')
+        plt.scatter(t, wsol[:,3],label='D')
+        plt.legend()
         plt.show()
