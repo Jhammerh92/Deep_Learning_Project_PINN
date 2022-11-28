@@ -22,6 +22,7 @@ def vectorfield(w, t, p):
     f = [-(alpha/(N)) * S * I,
          (alpha/(N)) * S*I - beta *I - gamma*I,
          beta * I,
+        #  beta2 * t > 100
          gamma * I]
     return f
 
