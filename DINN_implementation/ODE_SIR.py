@@ -41,7 +41,7 @@ class ODESolver:
         abserr = 1.0e-8
         relerr = 1.0e-6
         stoptime = 250.0
-        numpoints = 1001
+        numpoints = 250
         
         # Create the time samples for the output of the ODE solver.
         # I use a large number of points, only because I want to make
@@ -57,7 +57,8 @@ class ODESolver:
                       atol=abserr, rtol=relerr)
         return t, wsol, N
     
-    def add_noise(self, array, loc=0.0, scale=1.0):
+    def add_noise(self, array, loc=0.0, scale_pct=0.1):
+        scale = array*scale_pct
         return array + np.random.normal(loc=loc,scale=scale, size = array.shape)
     
     def plot_SIRD(self, t, wsol):

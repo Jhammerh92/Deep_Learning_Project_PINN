@@ -4,8 +4,9 @@ import torch
 import matplotlib.pyplot as plt
 
 class Plot:
-    def __init__(self, model, colors = None):
+    def __init__(self, model, colors = None, values_to_plot=['S','I','R','D']):
         self.model = model
+        self.values_to_plot = values_to_plot
         
         if colors is None:
             self.colors = ['C0','C1','C2','C3']
@@ -31,17 +32,29 @@ class Plot:
     
     def _plot_known_synthetic(self, ax):
         s = 1
-        line = ax.scatter(self.model.t, self.model.wsol[:,0], color=self.colors[0], s=s)
+        if 'S' in self.values_to_plot:
+            line = ax.scatter(self.model.t, self.model.wsol[:,0], color=self.colors[0], s=s)
+        if 'I' in self.values_to_plot:
+            line = ax.scatter(self.model.t, self.model.wsol[:,1], color=self.colors[1], s=s)
+        if 'R' in self.values_to_plot:
+            line = ax.scatter(self.model.t, self.model.wsol[:,2], color=self.colors[2], s=s)
+        if 'D' in self.values_to_plot:
+            line = ax.scatter(self.model.t, self.model.wsol[:,3], color=self.colors[3], s=s)
         line.set_label('Synthetic')
-        line = ax.scatter(self.model.t, self.model.wsol[:,1], color=self.colors[1], s=s)
-        line = ax.scatter(self.model.t, self.model.wsol[:,2], color=self.colors[2], s=s)
-        line = ax.scatter(self.model.t, self.model.wsol[:,3], color=self.colors[3], s=s)
         # self._set_color(line, self.colors)
     
     def _plot_known_nn(self, ax, linestyle='--'):
-        line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best, linestyle=linestyle)
+        if 'S' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best[:,0], linestyle=linestyle, color=self.colors[0])
+        if 'I' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best[:,1], linestyle=linestyle, color=self.colors[1])
+        if 'R' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best[:,2], linestyle=linestyle, color=self.colors[2])
+        if 'D' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best[:,3], linestyle=linestyle, color=self.colors[3])
+            
         line[0].set_label('PINN prediction')
-        self._set_color(line, self.colors)
+        # self._set_color(line, self.colors)
     
     def plot_known_data(self, ax):
         ax.set_title('Known data')
@@ -53,14 +66,29 @@ class Plot:
         ax.legend()
     
     def _plot_pred_synthetic(self, ax):
-        line = ax.plot(self.model.t_synth, self.model.wsol_synth)
+        if 'S' in self.values_to_plot:
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,0], color=self.colors[0])
+        if 'I' in self.values_to_plot:
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,1], color=self.colors[1])
+        if 'R' in self.values_to_plot:
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,2], color=self.colors[2])
+        if 'D' in self.values_to_plot:
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,3], color=self.colors[3])
+        
         line[0].set_label('Synthetic')
-        self._set_color(line, self.colors)
+        # self._set_color(line, self.colors)
     
     def _plot_pred_nn(self, ax, linestyle='--'):
-        line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth, linestyle=linestyle)
+        if 'S' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,0], linestyle=linestyle, color=self.colors[0])
+        if 'I' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,1], linestyle=linestyle, color=self.colors[1])
+        if 'R' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,2], linestyle=linestyle, color=self.colors[2])
+        if 'D' in self.values_to_plot:
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,3], linestyle=linestyle, color=self.colors[3])
         line[0].set_label('Prediction')
-        self._set_color(line, self.colors)
+        # self._set_color(line, self.colors)
     
     def plot_future_prediction(self, ax):
         ax.set_title('Future prediction')
@@ -119,10 +147,17 @@ class SIRD_deepxde_net:
         
         # Test points
         # TODO - how do we weight right points higher than earlier points?
-        observe_S = dde.icbc.PointSetBC(t.reshape(len(t), 1), S_sol.reshape(len(S_sol), 1), component=0)
-        observe_I = dde.icbc.PointSetBC(t.reshape(len(t), 1), I_sol.reshape(len(I_sol), 1), component=1)
-        observe_R = dde.icbc.PointSetBC(t.reshape(len(t), 1), R_sol.reshape(len(R_sol), 1), component=2)
-        observe_D = dde.icbc.PointSetBC(t.reshape(len(t), 1), D_sol.reshape(len(D_sol), 1), component=3)
+        select_points_after_bool = t>=0
+        t_later = t[select_points_after_bool]
+        S_sol_later = S_sol[select_points_after_bool]
+        I_sol_later = I_sol[select_points_after_bool]
+        R_sol_later = R_sol[select_points_after_bool]
+        D_sol_later = D_sol[select_points_after_bool]
+        
+        observe_S = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), S_sol_later.reshape(len(S_sol_later), 1), component=0)
+        observe_I = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), I_sol_later.reshape(len(I_sol_later), 1), component=1)
+        observe_R = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), R_sol_later.reshape(len(R_sol_later), 1), component=2)
+        observe_D = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), D_sol_later.reshape(len(D_sol_later), 1), component=3)
         
         known_points += [observe_S, observe_I, observe_R,observe_D]
         
@@ -203,3 +238,34 @@ class SIRD_deepxde_net:
     
     def get_best_nn_prediction(self):
         return self.t_nn_best, self.wsol_nn_best
+    
+    def run_all(self, t_synth, wsol_synth, solver, print_every=4000, iterations=8000
+                ,layer_size=None, activation="tanh", initializer="Glorot uniform"
+                ,lr=0.01, optimizer="adam"):
+        self.init_model(print_every=print_every, layer_size=layer_size, activation=activation,
+                        initializer=initializer, lr=lr, optimizer=optimizer)
+        self.train_model(iterations=iterations)
+        alpha_nn, beta_nn, gamma_nn = self.get_predicted_params()
+        t_nn_param, wsol_nn_param, N_nn_param = solver.solve_SIRD(alpha_nn, beta_nn, gamma_nn)
+        self.set_synthetic_data(t_synth, wsol_synth)
+        self.set_nn_synthetic_data(t_nn_param, wsol_nn_param)
+
+if __name__=='__main__':
+    alpha_real = 0.2
+    beta_real = 0.05
+    gamma_real = 0.01
+    import ODE_SIR
+    solver = ODE_SIR.ODESolver()
+    t_synth, wsol_synth, N = solver.solve_SIRD(alpha_real, beta_real, gamma_real)
+    wsol_synth = solver.add_noise(wsol_synth, scale_pct=0.05)
+    solver.plot_SIRD(t_synth, wsol_synth)
+    model_001l = SIRD_deepxde_net(t_synth, wsol_synth)
+    
+    model_001l.run_all(t_synth, wsol_synth, solver, iterations=6000)
+    
+    values_to_plot = ['I']
+    plot_model = Plot(model_001l, values_to_plot=values_to_plot)
+    
+    fig, ax = plt.subplots()
+    line = ax.scatter(plot_model.model.t_nn_synth, plot_model.model.wsol_synth[:,1], color=plot_model.colors[0], label='True',alpha=0.5)
+    line = ax.plot(plot_model.model.t_synth, plot_model.model.wsol_nn_synth[:,1], color=plot_model.colors[1], label='2')
