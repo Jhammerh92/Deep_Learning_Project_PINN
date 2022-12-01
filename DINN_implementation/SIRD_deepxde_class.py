@@ -30,10 +30,13 @@ class Plot:
         self.plot_future_prediction(axes[1])
     
     def _plot_known_synthetic(self, ax):
-        colors = self.colors
-        line = ax.plot(self.model.t, self.model.wsol)
-        line[0].set_label('Synthetic')
-        self._set_color(line, self.colors)
+        s = 1
+        line = ax.scatter(self.model.t, self.model.wsol[:,0], color=self.colors[0], s=s)
+        line.set_label('Synthetic')
+        line = ax.scatter(self.model.t, self.model.wsol[:,1], color=self.colors[1], s=s)
+        line = ax.scatter(self.model.t, self.model.wsol[:,2], color=self.colors[2], s=s)
+        line = ax.scatter(self.model.t, self.model.wsol[:,3], color=self.colors[3], s=s)
+        # self._set_color(line, self.colors)
     
     def _plot_known_nn(self, ax, linestyle='--'):
         line = ax.plot(self.model.t_nn_best, self.model.wsol_nn_best, linestyle=linestyle)
@@ -70,7 +73,8 @@ class Plot:
     
 
 class SIRD_deepxde_net:
-    def __init__(self, t, wsol, alpha_guess=0.1, beta_guess=0.1, gamma_guess=0.1):
+    def __init__(self, t, wsol, alpha_guess=0.1, beta_guess=0.1, gamma_guess=0.1,
+                 with_neumann=False):
         self.t, self.wsol = t, wsol
         S_sol, I_sol, R_sol, D_sol = wsol[:,0], wsol[:,1], wsol[:,2], wsol[:,3]
         init_num_people = np.sum(wsol[0,:])
@@ -103,11 +107,15 @@ class SIRD_deepxde_net:
             # print(t[-1])
             return on_final and np.isclose(t_inp[0], t[-1])
         
+        known_points = []
+        
         # Initial conditions
         ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
         ic_I = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
         ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=2)
         ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=3)
+        
+        known_points += [ic_S, ic_I, ic_R, ic_D]
         
         # Test points
         # TODO - how do we weight right points higher than earlier points?
@@ -116,33 +124,34 @@ class SIRD_deepxde_net:
         observe_R = dde.icbc.PointSetBC(t.reshape(len(t), 1), R_sol.reshape(len(R_sol), 1), component=2)
         observe_D = dde.icbc.PointSetBC(t.reshape(len(t), 1), D_sol.reshape(len(D_sol), 1), component=3)
         
+        known_points += [observe_S, observe_I, observe_R,observe_D]
+        
         # Final conditions
-        # TODO - we want to use cauchy BC (I think :) )
-        # find derivative using finite differences
         fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
         fc_I = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
         fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=2)
         fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=3)
         
-        S_diff = (S_sol[-1] - S_sol[-2]) / (t[-1] - t[-2])
-        I_diff = (I_sol[-1] - I_sol[-2]) / (t[-1] - t[-2])
-        R_diff = (R_sol[-1] - R_sol[-2]) / (t[-1] - t[-2])
-        D_diff = (D_sol[-1] - D_sol[-2]) / (t[-1] - t[-2])
+        known_points += [fc_S, fc_I, fc_R, fc_D]
         
-        fc_n_S = dde.NeumannBC(timedomain, lambda X: torch.tensor(S_diff).reshape(1,1), boundary_right, component=0)
-        fc_n_I = dde.NeumannBC(timedomain, lambda X: torch.tensor(I_diff).reshape(1,1), boundary_right, component=1)
-        fc_n_R = dde.NeumannBC(timedomain, lambda X: torch.tensor(R_diff).reshape(1,1), boundary_right, component=2)
-        fc_n_D = dde.NeumannBC(timedomain, lambda X: torch.tensor(D_diff).reshape(1,1), boundary_right, component=3)
+        # Neumann
+        if with_neumann:
+            S_diff = (S_sol[-1] - S_sol[-2]) / (t[-1] - t[-2])
+            I_diff = (I_sol[-1] - I_sol[-2]) / (t[-1] - t[-2])
+            R_diff = (R_sol[-1] - R_sol[-2]) / (t[-1] - t[-2])
+            D_diff = (D_sol[-1] - D_sol[-2]) / (t[-1] - t[-2])
+            
+            fc_n_S = dde.NeumannBC(timedomain, lambda X: torch.tensor(S_diff).reshape(1,1), boundary_right, component=0)
+            fc_n_I = dde.NeumannBC(timedomain, lambda X: torch.tensor(I_diff).reshape(1,1), boundary_right, component=1)
+            fc_n_R = dde.NeumannBC(timedomain, lambda X: torch.tensor(R_diff).reshape(1,1), boundary_right, component=2)
+            fc_n_D = dde.NeumannBC(timedomain, lambda X: torch.tensor(D_diff).reshape(1,1), boundary_right, component=3)
+            
+            known_points += [fc_n_S, fc_n_I, fc_n_R, fc_n_D]
         
         self.data = dde.data.PDE(
             timedomain,
             pde,
-            [ic_S, ic_I, ic_R, ic_D, 
-             observe_S, observe_I,
-             observe_R,observe_D
-            ,fc_S, fc_I, fc_R, fc_D
-            ,fc_n_S, fc_n_I, fc_n_R, fc_n_D
-             ],
+            known_points,
             num_domain=50,
             num_boundary=10,
             anchors=t.reshape(len(t), 1),
