@@ -2,6 +2,7 @@ import deepxde as dde
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import pandas as pd
 
 class Plot:
     def __init__(self, model, colors = None, values_to_plot=['S','I','R','D']):
@@ -208,6 +209,8 @@ class SIRD_deepxde_net:
         
         self.model = dde.Model(self.data, net)
         
+        #TODO - should we add decay here?
+        #TODO - batch size (see https://github.com/lululxvi/deepxde/issues/320)
         self.model.compile(optimizer, lr=lr 
                            # ,metrics=["l2 relative error"]
                            ,loss="MSE"
@@ -215,15 +218,30 @@ class SIRD_deepxde_net:
                            #,loss_weights=[0.5,0.5,0.5,0.5,1,1,1,1]
                       )
         
-        self.variable = dde.callbacks.VariableValue(self.variables, period=print_every)
+        self.variable = dde.callbacks.VariableValue(self.variables, period=print_every, filename='variables.txt')
     
-    def train_model(self, iterations=7500):
-        self.losshistory, self.train_state = self.model.train(iterations=iterations, callbacks=[self.variable])
-        self.alpha_nn, self.beta_nn, self.gamma_nn = self.variable.get_value()
+    def train_model(self, iterations=7500, print_every=1000):
+        self.losshistory, self.train_state = self.model.train(iterations=iterations, 
+                                                              callbacks=[self.variable],
+                                                              display_every=print_every)
+        # self.alpha_nn, self.beta_nn, self.gamma_nn = self.variable.get_value()
+        self._get_best_params()
         self._best_nn_prediction()
-        
-    def get_predicted_params(self):
-        return self.alpha_nn, self.beta_nn, self.gamma_nn
+    
+    def _get_best_params(self):
+        df = pd.read_csv('variables.txt', header=None, delimiter=' ', index_col=0)
+        df[1] = df[1].str[1:-1].astype('float')
+        df[2] = df[2].str[:-1].astype('float')
+        df[3] = df[3].str[:-1].astype('float')
+        df = df.loc[self.train_state.best_step]
+        self.best_alpha_nn, self.best_beta_nn, self.best_gamma_nn = df[1], df[2], df[3]
+        return self.best_alpha_nn, self.best_beta_nn, self.best_gamma_nn
+    
+    def get_best_params(self):
+        return self.best_alpha_nn, self.best_beta_nn, self.best_gamma_nn
+    
+    # def get_predicted_params(self):
+    #     return self.alpha_nn, self.beta_nn, self.gamma_nn
     
     def _best_nn_prediction(self):
         y_dim = self.train_state.best_y.shape[1]
@@ -239,13 +257,13 @@ class SIRD_deepxde_net:
     def get_best_nn_prediction(self):
         return self.t_nn_best, self.wsol_nn_best
     
-    def run_all(self, t_synth, wsol_synth, solver, print_every=4000, iterations=8000
+    def run_all(self, t_synth, wsol_synth, solver, print_every=1000, iterations=8000
                 ,layer_size=None, activation="tanh", initializer="Glorot uniform"
                 ,lr=0.01, optimizer="adam"):
         self.init_model(print_every=print_every, layer_size=layer_size, activation=activation,
                         initializer=initializer, lr=lr, optimizer=optimizer)
-        self.train_model(iterations=iterations)
-        alpha_nn, beta_nn, gamma_nn = self.get_predicted_params()
+        self.train_model(iterations=iterations, print_every=print_every)
+        alpha_nn, beta_nn, gamma_nn = self.get_best_params()
         t_nn_param, wsol_nn_param, N_nn_param = solver.solve_SIRD(alpha_nn, beta_nn, gamma_nn)
         self.set_synthetic_data(t_synth, wsol_synth)
         self.set_nn_synthetic_data(t_nn_param, wsol_nn_param)
@@ -261,21 +279,23 @@ if __name__=='__main__':
     t_synth, wsol_synth = t_synth[t_bool], wsol_synth[t_bool]
     wsol_synth = solver.add_noise(wsol_synth, scale_pct=0.05)
     solver.plot_SIRD(t_synth, wsol_synth)
-    model_001l = SIRD_deepxde_net(t_synth, wsol_synth)
+    model = SIRD_deepxde_net(t_synth, wsol_synth)
     
-    model_001l.run_all(t_synth, wsol_synth, solver, iterations=10000)
+    model.run_all(t_synth, wsol_synth, solver, iterations=10000)
     
-    values_to_plot = ['I']
-    plot_model = Plot(model_001l, values_to_plot=values_to_plot)
     
-    fig, ax = plt.subplots()
-    line = ax.scatter(plot_model.model.t_nn_synth, plot_model.model.wsol_synth[:,1], color=plot_model.colors[0], label='True',alpha=0.5)
-    line = ax.plot(plot_model.model.t_synth, plot_model.model.wsol_nn_synth[:,1], color=plot_model.colors[1], label='2')
+    # values_to_plot = ['I']
+    # plot_model = Plot(model, values_to_plot=values_to_plot)
     
-    pred_x = np.arange(0,250)
-    pred_x = pred_x.reshape(len(pred_x), 1)
-    pred_y = model_001l.model.predict(pred_x)
+    # fig, ax = plt.subplots()
+    # line = ax.scatter(plot_model.model.t_nn_synth, plot_model.model.wsol_synth[:,1], color=plot_model.colors[0], label='True',alpha=0.5)
+    # line = ax.plot(plot_model.model.t_synth, plot_model.model.wsol_nn_synth[:,1], color=plot_model.colors[1], label='2')
     
-    plt.plot(pred_x, pred_y)
-    plt.vlines(85, 0,1.2)
+    # pred_x = np.arange(0,250)
+    # pred_x = pred_x.reshape(len(pred_x), 1)
+    # pred_y = model.model.predict(pred_x)
+    
+    # plt.plot(pred_x, pred_y)
+    # plt.vlines(85, 0,1.2)
+
 
