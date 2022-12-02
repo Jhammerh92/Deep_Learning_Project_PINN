@@ -257,11 +257,13 @@ if __name__=='__main__':
     import ODE_SIR
     solver = ODE_SIR.ODESolver()
     t_synth, wsol_synth, N = solver.solve_SIRD(alpha_real, beta_real, gamma_real)
+    t_bool = t_synth  < 120
+    t_synth, wsol_synth = t_synth[t_bool], wsol_synth[t_bool]
     wsol_synth = solver.add_noise(wsol_synth, scale_pct=0.05)
     solver.plot_SIRD(t_synth, wsol_synth)
     model_001l = SIRD_deepxde_net(t_synth, wsol_synth)
     
-    model_001l.run_all(t_synth, wsol_synth, solver, iterations=6000)
+    model_001l.run_all(t_synth, wsol_synth, solver, iterations=10000)
     
     values_to_plot = ['I']
     plot_model = Plot(model_001l, values_to_plot=values_to_plot)
@@ -269,3 +271,11 @@ if __name__=='__main__':
     fig, ax = plt.subplots()
     line = ax.scatter(plot_model.model.t_nn_synth, plot_model.model.wsol_synth[:,1], color=plot_model.colors[0], label='True',alpha=0.5)
     line = ax.plot(plot_model.model.t_synth, plot_model.model.wsol_nn_synth[:,1], color=plot_model.colors[1], label='2')
+    
+    pred_x = np.arange(0,250)
+    pred_x = pred_x.reshape(len(pred_x), 1)
+    pred_y = model_001l.model.predict(pred_x)
+    
+    plt.plot(pred_x, pred_y)
+    plt.vlines(85, 0,1.2)
+
