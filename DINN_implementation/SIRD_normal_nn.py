@@ -47,12 +47,12 @@ class Net(nn.Module):
         return x
 
 class SIRD_net:
-    def __init__(self, t, wsol):
+    def __init__(self, t, wsol, init_num_people):
         t = t
         self.wsol = wsol
 
         S_sol, I_sol, R_sol, D_sol = wsol[:,0], wsol[:,1], wsol[:,2], wsol[:,3]
-        init_num_people = np.sum(wsol[0,:])
+        # init_num_people = np.sum(wsol[0,:])
         S_sol, I_sol, R_sol, D_sol = S_sol/init_num_people, I_sol/init_num_people, R_sol/init_num_people, D_sol/init_num_people
 
 
@@ -76,7 +76,7 @@ class SIRD_net:
 
         get_slice = lambda i, size: range(i * size, (i + 1) * size)
         num_samples_train = t_train.shape[0]
-        batch_size = 100
+        batch_size = 1
         num_batches_train = num_samples_train // batch_size
 
         num_epochs = 2500

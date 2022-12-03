@@ -269,19 +269,26 @@ class SIRD_deepxde_net:
         self.set_nn_synthetic_data(t_nn_param, wsol_nn_param)
 
 if __name__=='__main__':
+    seed = 0
+    np.random.seed(seed)
+    dde.config.set_random_seed(seed)
+    
     alpha_real = 0.2
     beta_real = 0.05
     gamma_real = 0.01
     import ODE_SIR
     solver = ODE_SIR.ODESolver()
     t_synth, wsol_synth, N = solver.solve_SIRD(alpha_real, beta_real, gamma_real)
-    t_bool = t_synth  < 120
-    t_synth, wsol_synth = t_synth[t_bool], wsol_synth[t_bool]
-    wsol_synth = solver.add_noise(wsol_synth, scale_pct=0.05)
-    solver.plot_SIRD(t_synth, wsol_synth)
-    model = SIRD_deepxde_net(t_synth, wsol_synth)
+    t_bool = t_synth  < 85
+    t, wsol = t_synth[t_bool], wsol_synth[t_bool]
+    wsol = solver.add_noise(wsol, scale_pct=0.05)
     
-    model.run_all(t_synth, wsol_synth, solver, iterations=10000)
+    fig, ax = plt.subplots(dpi=300, figsize=(6,6))
+    solver.plot_synthetic_and_sample(t_synth, wsol_synth, t, wsol, title='SIRD solution and train data', ax=ax)
+    plt.savefig('SIRD solution',bbox_inches='tight')
+    # model = SIRD_deepxde_net(t_synth, wsol_synth)
+    
+    # model.run_all(t_synth, wsol_synth, solver, iterations=10000)
     
     
     # values_to_plot = ['I']
