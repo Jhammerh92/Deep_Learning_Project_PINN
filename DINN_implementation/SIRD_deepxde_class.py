@@ -83,46 +83,46 @@ class Plot:
         if 'S' in self.values_to_plot:
             line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,0], color=self.colors[0], **kwargs)
             if not label_set:
-                line[0].set_label('Synthetic')
+                line[0].set_label('ODE solution')
                 label_set = True
         if 'I' in self.values_to_plot:
             line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,1], color=self.colors[1], **kwargs)
             if not label_set:
-                line[0].set_label('Synthetic')
+                line[0].set_label('ODE solution')
                 label_set = True
         if 'R' in self.values_to_plot:
             line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,2], color=self.colors[2], **kwargs)
             if not label_set:
-                line[0].set_label('Synthetic')
+                line[0].set_label('ODE solution')
                 label_set = True
         if 'D' in self.values_to_plot:
             line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,3], color=self.colors[3], **kwargs)
             if not label_set:
-                line[0].set_label('Synthetic')
+                line[0].set_label('ODE solution')
                 label_set = True
         # self._set_color(line, self.colors)
     
-    def _plot_pred_nn(self, ax, linestyle='--'):
+    def _plot_pred_nn(self, ax, linestyle='--', **kwargs):
         label_set = False
         if 'S' in self.values_to_plot:
-            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,0], linestyle=linestyle, color=self.colors[0])
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,0], linestyle=linestyle, color=self.colors[0], **kwargs)
             if not label_set:
-                line[0].set_label('Prediction')
+                line[0].set_label('PINN prediction')
                 label_set = True
         if 'I' in self.values_to_plot:
-            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,1], linestyle=linestyle, color=self.colors[1])
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,1], linestyle=linestyle, color=self.colors[1], **kwargs)
             if not label_set:
-                line[0].set_label('Prediction')
+                line[0].set_label('PINN prediction')
                 label_set = True
         if 'R' in self.values_to_plot:
-            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,2], linestyle=linestyle, color=self.colors[2])
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,2], linestyle=linestyle, color=self.colors[2], **kwargs)
             if not label_set:
-                line[0].set_label('Prediction')
+                line[0].set_label('PINN prediction')
                 label_set = True
         if 'D' in self.values_to_plot:
-            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,3], linestyle=linestyle, color=self.colors[3])
+            line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,3], linestyle=linestyle, color=self.colors[3], **kwargs)
             if not label_set:
-                line[0].set_label('Prediction')
+                line[0].set_label('PINN prediction')
                 label_set = True
         # self._set_color(line, self.colors)
     
@@ -138,10 +138,15 @@ class Plot:
 
 class SIRD_deepxde_net:
     def __init__(self, t, wsol, alpha_guess=0.1, beta_guess=0.1, gamma_guess=0.1,
-                 with_neumann=False):
+                 with_neumann=False, model_name=None, init_num_people=None):
+        if model_name is None:
+            model_name = 'variables'
+        self.model_name = model_name
+        
         self.t, self.wsol = t, wsol
         S_sol, I_sol, R_sol, D_sol = wsol[:,0], wsol[:,1], wsol[:,2], wsol[:,3]
-        init_num_people = np.sum(wsol[0,:])
+        if init_num_people is None:
+            init_num_people = np.sum(wsol[0,:])
         self.init_num_people = init_num_people
         S_sol, I_sol, R_sol, D_sol = S_sol/init_num_people, I_sol/init_num_people, R_sol/init_num_people, D_sol/init_num_people
         
@@ -176,12 +181,12 @@ class SIRD_deepxde_net:
         # Initial conditions
         # TODO - BC for susceptible should be 1
         # TODO - BC for rest should be 0
-        ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
-        ic_I = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
-        ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=2)
-        ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=3)
+        # ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
+        # ic_I = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
+        # ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=2)
+        # ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=3)
         
-        known_points += [ic_S, ic_I, ic_R, ic_D]
+        # known_points += [ic_S, ic_I, ic_R, ic_D]
         
         # Test points
         # TODO - how do we weight right points higher than earlier points?
@@ -200,16 +205,15 @@ class SIRD_deepxde_net:
         known_points += [observe_S, observe_I, observe_R,observe_D]
         
         # Final conditions
-        fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
-        fc_I = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
-        fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=2)
-        fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=3)
+        # fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
+        # fc_I = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
+        # fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=2)
+        # fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=3)
         
-        known_points += [fc_S, fc_I, fc_R, fc_D]
+        # known_points += [fc_S, fc_I, fc_R, fc_D]
         
         # Neumann
         if with_neumann:
-            #TODO - slope at time 0 should be 0
             S_diff = (S_sol[-1] - S_sol[-2]) / (t[-1] - t[-2])
             I_diff = (I_sol[-1] - I_sol[-2]) / (t[-1] - t[-2])
             R_diff = (R_sol[-1] - R_sol[-2]) / (t[-1] - t[-2])
@@ -226,7 +230,7 @@ class SIRD_deepxde_net:
             timedomain,
             pde,
             known_points,
-            num_domain=50,
+            num_domain=600, #TODO would it help to have this number higher? IE weight the result of the PDE higher
             num_boundary=10,
             anchors=t.reshape(len(t), 1),
         )
@@ -239,11 +243,10 @@ class SIRD_deepxde_net:
         self.t_nn_synth, self.wsol_nn_synth = t, wsol
     
     def init_model(self, layer_size=None, activation="tanh", initializer="Glorot uniform", 
-                   lr=0.01, optimizer="adam", print_every=100):
+                   lr=0.001, optimizer="adam", print_every=100):
         
         if layer_size is None:
-            #TODO - 3 lag
-            layer_size = [1] + [32] * 4 + [4]
+            layer_size = [1] + [32] * 3 + [4]
         
         net = dde.nn.FNN(layer_size, activation, initializer)
         
@@ -258,7 +261,7 @@ class SIRD_deepxde_net:
                            #,loss_weights=[0.5,0.5,0.5,0.5,1,1,1,1]
                       )
         
-        self.variable = dde.callbacks.VariableValue(self.variables, period=print_every, filename='variables.txt')
+        self.variable = dde.callbacks.VariableValue(self.variables, period=print_every, filename=f'{self.model_name}.txt')
     
     def train_model(self, iterations=7500, print_every=1000):
         self.losshistory, self.train_state = self.model.train(iterations=iterations, 
@@ -269,7 +272,7 @@ class SIRD_deepxde_net:
         self._best_nn_prediction()
     
     def _get_best_params(self):
-        df = pd.read_csv('variables.txt', header=None, delimiter=' ', index_col=0)
+        df = pd.read_csv(f'{self.model_name}.txt', header=None, delimiter=' ', index_col=0)
         df[1] = df[1].str[1:-1].astype('float')
         df[2] = df[2].str[:-1].astype('float')
         df[3] = df[3].str[:-1].astype('float')
@@ -299,7 +302,7 @@ class SIRD_deepxde_net:
     
     def run_all(self, t_synth, wsol_synth, solver, print_every=1000, iterations=8000
                 ,layer_size=None, activation="tanh", initializer="Glorot uniform"
-                ,lr=0.01, optimizer="adam"):
+                ,lr=0.001, optimizer="adam"):
         self.init_model(print_every=print_every, layer_size=layer_size, activation=activation,
                         initializer=initializer, lr=lr, optimizer=optimizer)
         self.train_model(iterations=iterations, print_every=print_every)
@@ -323,7 +326,6 @@ if __name__=='__main__':
     t, wsol = t_synth[t_bool], wsol_synth[t_bool]
     wsol = solver.add_noise(wsol, scale_pct=0.05)
     
-    plt.rcParams['text.usetex'] = False
     fig, ax = plt.subplots(dpi=300, figsize=(6,6))
     solver.plot_synthetic_and_sample(t_synth, wsol_synth, t, wsol, title='SIRD solution and train data', ax=ax)
     plt.savefig('SIRD solution',bbox_inches='tight')

@@ -25,9 +25,9 @@ class Net(nn.Module):
         self.b_3 = Parameter(init.constant_(torch.Tensor(num_output), 0))
         # define activation function in constructor
         # self.activation = torch.nn.ELU()
-        # self.activation = torch.nn.Tanh()
+        self.activation = torch.nn.Tanh()
         # self.activation = torch.nn.ReLU()
-        self.activation = torch.nn.Sigmoid()
+        # self.activation = torch.nn.Sigmoid()
         self.dropout = nn.Dropout(0.1)
         self.batchnorm = nn.BatchNorm1d(num_hidden, affine=False)
         
@@ -47,10 +47,11 @@ class Net(nn.Module):
         return x
 
 class SIRD_net:
-    def __init__(self, t, wsol, init_num_people):
+    def __init__(self, t, wsol, init_num_people, values_to_train=['S','I','R','D']):
         t = t
         self.wsol = wsol
-
+        self.values_to_train = values_to_train
+        
         S_sol, I_sol, R_sol, D_sol = wsol[:,0], wsol[:,1], wsol[:,2], wsol[:,3]
         # init_num_people = np.sum(wsol[0,:])
         S_sol, I_sol, R_sol, D_sol = S_sol/init_num_people, I_sol/init_num_people, R_sol/init_num_people, D_sol/init_num_people
@@ -65,7 +66,7 @@ class SIRD_net:
     
     def train(self):
         num_hidden, num_features, num_output = 50, 1, 1
-        num_hidden_layers = 5
+        num_hidden_layers = 3
 
         self.S_net = Net(num_hidden, num_features, num_output, num_hidden_layers)
         self.I_net = Net(num_hidden, num_features, num_output, num_hidden_layers)
@@ -76,13 +77,18 @@ class SIRD_net:
 
         get_slice = lambda i, size: range(i * size, (i + 1) * size)
         num_samples_train = t_train.shape[0]
-        batch_size = 1
+        batch_size = 10
         num_batches_train = num_samples_train // batch_size
 
-        num_epochs = 2500
+        num_epochs = 5000
 
-        for net, sol in zip([self.S_net, self.I_net, self.R_net, self.D_net], 
+        for typ, net, sol in zip(
+                            ['S','I','R','D'],
+                            [self.S_net, self.I_net, self.R_net, self.D_net], 
                             [self.S_sol, self.I_sol, self.R_sol, self.D_sol]):
+            if typ not in self.values_to_train:
+                continue
+            
             optimizer = optim.Adam(net.parameters(), lr=0.001)
             criterion = nn.MSELoss()
             
@@ -117,7 +123,7 @@ class SIRD_net:
                 if epoch%100==0:
                     print("Epoch %2i : Train Loss %f" % (
                         epoch+1, losses[-1]))
-    def plot(self, ax, t_synth, values_to_plot=['S','I','R','D']):
+    def plot(self, ax, t_synth, values_to_plot=['S','I','R','D'],**kwargs):
         # plt.figure()
         colors = ['C0','C1','C2','C3']
         label_set = False
@@ -131,9 +137,9 @@ class SIRD_net:
                 continue
             t_input = torch.tensor(t_synth).reshape(len(t_synth),1).float()
             pred = net(t_input).flatten().detach()*self.init_num_people
-            line = ax.plot(t_synth, pred, linestyle='dashdot', color=c)
+            line = ax.plot(t_synth, pred, linestyle='dashdot', color=c, **kwargs)
             if not label_set:
-                line[0].set_label('NN prediction')
+                line[0].set_label('FFNN prediction')
                 label_set = True
             # plt.scatter(self.t.flatten().detach(), sol.flatten().detach(),label=f'{pop_type}_sol', linestyle='--', color=c)
 

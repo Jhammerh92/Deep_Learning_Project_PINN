@@ -28,12 +28,13 @@ class ODESolver:
              gamma * I]
         return f
     
-    def solve_SIRD(self, alpha=0.2, beta=0.05, gamma=0.01, init_num_people=5000000):
+    def solve_SIRD(self, alpha=0.2, beta=0.05, gamma=0.01, init_num_people=5000000, 
+                   I=10, R=0, D=0, numpoints=500):
         # Initial conditions
-        I = 10
+        I = I
         S = init_num_people - I
-        R = 0
-        D = 0
+        R = R
+        D = D
         self.init_num_people = init_num_people
         
         N = S
@@ -42,7 +43,7 @@ class ODESolver:
         abserr = 1.0e-8
         relerr = 1.0e-6
         stoptime = 250.0
-        numpoints = 250
+        numpoints = numpoints
         
         # Create the time samples for the output of the ODE solver.
         # I use a large number of points, only because I want to make
@@ -111,7 +112,7 @@ class ODESolver:
         
         red_circle = Line2D([0], [0], marker='o', color='w', label='Train data',
                         markerfacecolor='grey', markersize=8),
-        line_cut = ax.vlines(x=85, ymin=min(wsol.min(),wsol_sub.min()), ymax=max(wsol.max(), wsol_sub.max()), linestyle='--', lw=0.5, color='k', label='t_{cut}')
+        line_cut = ax.vlines(x=85, ymin=min(wsol.min(),wsol_sub.min()), ymax=max(wsol.max(), wsol_sub.max()), linestyle='--', lw=1, color='k', label='$t_{cut}$')
         ax.legend(handles=[lineS[0], lineI[0], lineR[0], lineD[0], red_circle[0],line_cut])
         
         self._axis_SIRD(ax)
