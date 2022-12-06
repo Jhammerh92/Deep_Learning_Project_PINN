@@ -157,12 +157,12 @@ class SIRD_deepxde_net:
         
         # Test points
         observe_S = dde.icbc.PointSetBC(t.reshape(len(t), 1), S_sol.reshape(len(S_sol), 1), component=0)
-        observe_Ia = dde.icbc.PointSetBC(t.reshape(len(t), 1), I_sol.reshape(len(I_sol), 1), component=1)
-        observe_Ib = dde.icbc.PointSetBC(t.reshape(len(t), 1), I_sol.reshape(len(I_sol), 1), component=2)
+        # observe_Ia = dde.icbc.PointSetBC(t.reshape(len(t), 1), I_sol.reshape(len(I_sol), 1), component=1)
+        observe_I = dde.icbc.PointSetBC(t.reshape(len(t), 1), I_sol.reshape(len(I_sol), 1), component=[1,2])
         observe_R = dde.icbc.PointSetBC(t.reshape(len(t), 1), R_sol.reshape(len(R_sol), 1), component=3)
         observe_D = dde.icbc.PointSetBC(t.reshape(len(t), 1), D_sol.reshape(len(D_sol), 1), component=4)
         
-        known_points += [observe_S, observe_Ia, observe_Ib, 
+        known_points += [observe_S, observe_I, 
                          observe_R,observe_D]
         
         # Final conditions
@@ -290,9 +290,11 @@ if __name__=='__main__':
     sird = np.c_[S,I,R,D]
     
     # model = SIRD_deepxde_net(t, wsol)
-    model = SIRD_deepxde_net(t, sird)
+    model = SIRD_deepxde_net(t, sird,
+                             alpha_a=s['alpha_a'], beta_a=s['beta_a'],
+                             alpha_b=s['alpha_b'], beta_b=s['beta_b'])
     model.init_model(print_every=1000)
-    model.train_model(iterations=10000, print_every=1000)
+    model.train_model(iterations=15000, print_every=1000)
     
     alpha_a_nn, alpha_b_nn, beta_a_nn, beta_b_nn, g_a_nn, g_b_nn = model._get_best_params()
     
