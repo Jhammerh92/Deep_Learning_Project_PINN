@@ -32,16 +32,28 @@ class Plot:
         self.plot_future_prediction(axes[1])
     
     def _plot_known_synthetic(self, ax):
+        label_set = False
         s = 1
         if 'S' in self.values_to_plot:
             line = ax.scatter(self.model.t, self.model.wsol[:,0], color=self.colors[0], s=s)
+            if not label_set:
+                line.set_label('Synthetic')
+                label_set = True
         if 'I' in self.values_to_plot:
             line = ax.scatter(self.model.t, self.model.wsol[:,1], color=self.colors[1], s=s)
+            if not label_set:
+                line.set_label('Synthetic')
+                label_set = True
         if 'R' in self.values_to_plot:
             line = ax.scatter(self.model.t, self.model.wsol[:,2], color=self.colors[2], s=s)
+            if not label_set:
+                line.set_label('Synthetic')
+                label_set = True
         if 'D' in self.values_to_plot:
             line = ax.scatter(self.model.t, self.model.wsol[:,3], color=self.colors[3], s=s)
-        line.set_label('Synthetic')
+            if not label_set:
+                line.set_label('Synthetic')
+                label_set = True
         # self._set_color(line, self.colors)
     
     def _plot_known_nn(self, ax, linestyle='--'):
@@ -66,29 +78,52 @@ class Plot:
         
         ax.legend()
     
-    def _plot_pred_synthetic(self, ax):
+    def _plot_pred_synthetic(self, ax, **kwargs):
+        label_set = False
         if 'S' in self.values_to_plot:
-            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,0], color=self.colors[0])
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,0], color=self.colors[0], **kwargs)
+            if not label_set:
+                line[0].set_label('Synthetic')
+                label_set = True
         if 'I' in self.values_to_plot:
-            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,1], color=self.colors[1])
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,1], color=self.colors[1], **kwargs)
+            if not label_set:
+                line[0].set_label('Synthetic')
+                label_set = True
         if 'R' in self.values_to_plot:
-            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,2], color=self.colors[2])
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,2], color=self.colors[2], **kwargs)
+            if not label_set:
+                line[0].set_label('Synthetic')
+                label_set = True
         if 'D' in self.values_to_plot:
-            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,3], color=self.colors[3])
-        
-        line[0].set_label('Synthetic')
+            line = ax.plot(self.model.t_synth, self.model.wsol_synth[:,3], color=self.colors[3], **kwargs)
+            if not label_set:
+                line[0].set_label('Synthetic')
+                label_set = True
         # self._set_color(line, self.colors)
     
     def _plot_pred_nn(self, ax, linestyle='--'):
+        label_set = False
         if 'S' in self.values_to_plot:
             line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,0], linestyle=linestyle, color=self.colors[0])
+            if not label_set:
+                line[0].set_label('Prediction')
+                label_set = True
         if 'I' in self.values_to_plot:
             line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,1], linestyle=linestyle, color=self.colors[1])
+            if not label_set:
+                line[0].set_label('Prediction')
+                label_set = True
         if 'R' in self.values_to_plot:
             line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,2], linestyle=linestyle, color=self.colors[2])
+            if not label_set:
+                line[0].set_label('Prediction')
+                label_set = True
         if 'D' in self.values_to_plot:
             line = ax.plot(self.model.t_nn_synth, self.model.wsol_nn_synth[:,3], linestyle=linestyle, color=self.colors[3])
-        line[0].set_label('Prediction')
+            if not label_set:
+                line[0].set_label('Prediction')
+                label_set = True
         # self._set_color(line, self.colors)
     
     def plot_future_prediction(self, ax):
@@ -139,6 +174,8 @@ class SIRD_deepxde_net:
         known_points = []
         
         # Initial conditions
+        # TODO - BC for susceptible should be 1
+        # TODO - BC for rest should be 0
         ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
         ic_I = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
         ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=2)
@@ -172,6 +209,7 @@ class SIRD_deepxde_net:
         
         # Neumann
         if with_neumann:
+            #TODO - slope at time 0 should be 0
             S_diff = (S_sol[-1] - S_sol[-2]) / (t[-1] - t[-2])
             I_diff = (I_sol[-1] - I_sol[-2]) / (t[-1] - t[-2])
             R_diff = (R_sol[-1] - R_sol[-2]) / (t[-1] - t[-2])
@@ -202,7 +240,9 @@ class SIRD_deepxde_net:
     
     def init_model(self, layer_size=None, activation="tanh", initializer="Glorot uniform", 
                    lr=0.01, optimizer="adam", print_every=100):
+        
         if layer_size is None:
+            #TODO - 3 lag
             layer_size = [1] + [32] * 4 + [4]
         
         net = dde.nn.FNN(layer_size, activation, initializer)
@@ -283,6 +323,7 @@ if __name__=='__main__':
     t, wsol = t_synth[t_bool], wsol_synth[t_bool]
     wsol = solver.add_noise(wsol, scale_pct=0.05)
     
+    plt.rcParams['text.usetex'] = False
     fig, ax = plt.subplots(dpi=300, figsize=(6,6))
     solver.plot_synthetic_and_sample(t_synth, wsol_synth, t, wsol, title='SIRD solution and train data', ax=ax)
     plt.savefig('SIRD solution',bbox_inches='tight')

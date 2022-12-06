@@ -111,8 +111,8 @@ class ODESolver:
         
         red_circle = Line2D([0], [0], marker='o', color='w', label='Train data',
                         markerfacecolor='grey', markersize=8),
-        
-        ax.legend(handles=[lineS[0], lineI[0], lineR[0], lineD[0], red_circle[0]])
+        line_cut = ax.vlines(x=85, ymin=min(wsol.min(),wsol_sub.min()), ymax=max(wsol.max(), wsol_sub.max()), linestyle='--', lw=0.5, color='k', label='t_{cut}')
+        ax.legend(handles=[lineS[0], lineI[0], lineR[0], lineD[0], red_circle[0],line_cut])
         
         self._axis_SIRD(ax)
         ax.grid(linestyle=':') #

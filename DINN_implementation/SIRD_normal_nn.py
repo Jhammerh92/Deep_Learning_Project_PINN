@@ -117,29 +117,39 @@ class SIRD_net:
                 if epoch%100==0:
                     print("Epoch %2i : Train Loss %f" % (
                         epoch+1, losses[-1]))
-    def plot(self, t_synth, wsol_synth):
-        plt.figure()
+    def plot(self, ax, t_synth, values_to_plot=['S','I','R','D']):
+        # plt.figure()
         colors = ['C0','C1','C2','C3']
-        for pop_type, net, sol, c in zip(['S','I','R','D'],
+        label_set = False
+        for i, pop_type, net, sol, c in zip(
+                                [0,1,2,3],
+                                ['S','I','R','D'],
                                  [self.S_net, self.I_net, self.R_net, self.D_net], 
                                  [self.S_sol, self.I_sol, self.R_sol, self.D_sol],
                                  colors):
-            plt.plot(self.t.flatten().detach(), net(self.t).flatten().detach(),label=f'{pop_type}_pred', color=c)
-            plt.plot(self.t.flatten().detach(), sol.flatten().detach(),label=f'{pop_type}_sol', linestyle='--', color=c)
+            if pop_type not in values_to_plot:
+                continue
+            t_input = torch.tensor(t_synth).reshape(len(t_synth),1).float()
+            pred = net(t_input).flatten().detach()*self.init_num_people
+            line = ax.plot(t_synth, pred, linestyle='dashdot', color=c)
+            if not label_set:
+                line[0].set_label('NN prediction')
+                label_set = True
+            # plt.scatter(self.t.flatten().detach(), sol.flatten().detach(),label=f'{pop_type}_sol', linestyle='--', color=c)
 
-        plt.legend()
+        # plt.legend()
 
-        plt.figure()
-        for pop_type, net, sol_num, c in zip(['S','I','R','D'],
-                                 [self.S_net, self.I_net, self.R_net, self.D_net], 
-                                 [0,1,2,3],
-                                 colors):
+        # plt.figure()
+        # for pop_type, net, sol_num, c in zip(['S','I','R','D'],
+        #                          [self.S_net, self.I_net, self.R_net, self.D_net], 
+        #                          [0,1,2,3],
+        #                          colors):
 
-            synth_pred = net(torch.tensor(t_synth).reshape(len(t_synth),1).float())*self.init_num_people
-            plt.plot(t_synth, synth_pred.flatten().detach(),label=f'{pop_type}_pred', color=c)
-            plt.plot(t_synth, wsol_synth[:,sol_num],label=f'{pop_type}_sol', linestyle='--', color=c)
+        #     synth_pred = net(torch.tensor(t_synth).reshape(len(t_synth),1).float())*self.init_num_people
+        #     plt.plot(t_synth, synth_pred.flatten().detach(),label=f'{pop_type}_pred', color=c)
+        #     plt.plot(t_synth, wsol_synth[:,sol_num],label=f'{pop_type}_sol', linestyle='--', color=c)
 
-        plt.legend()
+        # plt.legend()
                 
 
 # alpha_real = 0.2
