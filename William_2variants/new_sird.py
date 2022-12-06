@@ -9,7 +9,6 @@ from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 import numpy as np
 import deepxde as dde
-import torch
 import pandas as pd
 
 class SIRD:
@@ -28,13 +27,13 @@ class SIRD:
                     p = [m1,m2,k1,k2,L1,L2,b1,b2]
         """
         S, I_a, I_b, R, D = w
-        alpha_a, alpha_b, beta_a, beta_b, gamma_a, gamma_b = p
+        alpha_a, alpha_b, beta_a, beta_b, gamma = p
        
         f = [ - (alpha_a/(self.N) * I_a + alpha_b/(self.N) * I_b ) * S,
-            (alpha_a/(self.N)) * S * I_a - beta_a * I_a - gamma_a * I_a, # should use all infected?? (I_a + I_aa + I_ba)
-            (alpha_b/(self.N)) * S * I_b - beta_b * I_b - gamma_b * I_b,
+            (alpha_a/(self.N)) * S * I_a - beta_a * I_a - gamma * I_a, # should use all infected?? (I_a + I_aa + I_ba)
+            (alpha_b/(self.N)) * S * I_b - beta_b * I_b - gamma * I_b,
             beta_a * I_a + beta_b * I_b,
-            gamma_a * I_a + gamma_b * I_b,
+            gamma * I_a + gamma * I_b,
             ]
         return f
 
@@ -44,7 +43,7 @@ class SIRD:
         
         alpha_a, alpha_b = s['alpha_a'], s['alpha_b']
         beta_a, beta_b = s['beta_a'], s['beta_b']
-        gamma_a, gamma_b = s['gamma_a'], s['gamma_b']
+        gamma = s['gamma']
         
         self.N = S + I_a + I_b + R + D
         
@@ -52,6 +51,7 @@ class SIRD:
         abserr = 1.0e-8
         relerr = 1.0e-6
         stoptime = 600.0
+        # numpoints = stoptime * 10
         numpoints = 600
         
         # Create the time samples for the output of the ODE solver.
@@ -60,7 +60,7 @@ class SIRD:
         # t = [stoptime * float(i) / (numpoints - 1) for i in range(numpoints)]
         t = np.linspace(0, stoptime, numpoints, endpoint=True)
         # Pack up the parameters and initial conditions:
-        p = [alpha_a, alpha_b, beta_a, beta_b, gamma_a, gamma_b]
+        p = [alpha_a, alpha_b, beta_a, beta_b, gamma]
         w0 = [S, I_a, I_b, R, D]
         
         # Call the ODE solver.
@@ -97,7 +97,7 @@ class SIRD:
 class SIRD_deepxde_net:
     def __init__(self, t, wsol, alpha_a=0.1, alpha_b=0.1,
                  beta_a=0.01, beta_b=0.01,
-                 gamma_a=0.001, gamma_b=0.001):
+                 gamma=0.001):
         self.t, self.wsol = t, wsol
         S_sol, I_sol, R_sol, D_sol = wsol[:,0], wsol[:,1], wsol[:,2], wsol[:,3]
         init_num_people = np.sum(wsol[0,:])
@@ -112,8 +112,7 @@ class SIRD_deepxde_net:
         beta_a = dde.Variable(beta_a)
         beta_b = dde.Variable(beta_b)
         
-        gamma_a = dde.Variable(gamma_a)
-        gamma_b = dde.Variable(gamma_b)
+        gamma = dde.Variable(gamma)
         
         def pde(t, y):
             S, I_a, I_b = y[:, 0:1], y[:, 1:2], y[:, 2:3]
@@ -125,14 +124,16 @@ class SIRD_deepxde_net:
             dD_t = dde.grad.jacobian(y, t, i=4)
             
             expanded_sird = [dS_t + (alpha_a*I_a + alpha_b*I_b)*S,
-                             dIa_t - alpha_a*S*I_a + beta_a*I_a + gamma_a*I_a,
-                             dIb_t - alpha_b*S*I_b + beta_b*I_b + gamma_b*I_b,
+                             dIa_t - alpha_a*S*I_a + beta_a*I_a + gamma*I_a,
+                             dIb_t - alpha_b*S*I_b + beta_b*I_b + gamma*I_b,
                              dR_t - beta_a*I_a - beta_b*I_b,
-                             dD_t - gamma_a*I_a - gamma_b*I_b
+                             dD_t - gamma*I_a - gamma*I_b
                              ]
             
             sird = [expanded_sird[0],
-                    sum(expanded_sird[1:3]),
+                    # sum(expanded_sird[1:3]),
+                    expanded_sird[1],
+                    expanded_sird[2],
                     expanded_sird[3],
                     expanded_sird[4]]
             
@@ -162,8 +163,10 @@ class SIRD_deepxde_net:
         observe_R = dde.icbc.PointSetBC(t.reshape(len(t), 1), R_sol.reshape(len(R_sol), 1), component=3)
         observe_D = dde.icbc.PointSetBC(t.reshape(len(t), 1), D_sol.reshape(len(D_sol), 1), component=4)
         
-        known_points += [observe_S, observe_I, 
-                         observe_R,observe_D]
+        known_points += [observe_S,
+                         observe_I, 
+                         observe_R,
+                         observe_D]
         
         # Final conditions
         # fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
@@ -181,7 +184,7 @@ class SIRD_deepxde_net:
             num_boundary=10,
             anchors=t.reshape(len(t), 1),
         )
-        self.variables = [alpha_a, alpha_b, beta_a, beta_b, gamma_a, gamma_b]
+        self.variables = [alpha_a, alpha_b, beta_a, beta_b, gamma]
     
     def set_synthetic_data(self, t, wsol):
         self.t_synth, self.wsol_synth = t, wsol
@@ -192,7 +195,7 @@ class SIRD_deepxde_net:
     def init_model(self, layer_size=None, activation="tanh", initializer="Glorot uniform", 
                    lr=0.01, optimizer="adam", print_every=100):
         if layer_size is None:
-            layer_size = [1] + [32] * 4 + [5]
+            layer_size = [1] + [32] * 3 + [5]
         
         net = dde.nn.FNN(layer_size, activation, initializer)
         
@@ -204,7 +207,9 @@ class SIRD_deepxde_net:
                            # ,metrics=["l2 relative error"]
                            ,loss="MSE"
                            ,external_trainable_variables=self.variables
-                           #,loss_weights=[0.5,0.5,0.5,0.5,1,1,1,1]
+                            # ,loss_weights=[1,1,1,1,
+                            #                1,1,1,1]
+                            ,with_softadapt=True
                       )
         
         self.variable = dde.callbacks.VariableValue(self.variables, period=print_every, filename='variables.txt')
@@ -224,10 +229,10 @@ class SIRD_deepxde_net:
         df[3] = df[3].str[:-1].astype('float')
         df[4] = df[4].str[:-1].astype('float')
         df[5] = df[5].str[:-1].astype('float')
-        df[6] = df[6].str[:-1].astype('float')
+        # df[6] = df[6].str[:-1].astype('float')
         df = df.loc[self.train_state.best_step]
-        self.best_params = [df[1], df[2], df[3], df[4], df[5], df[6]]
-        return df[1], df[2], df[3], df[4], df[5], df[6]
+        self.best_params = [df[1], df[2], df[3], df[4], df[5]] #, df[6]
+        return df[1], df[2], df[3], df[4], df[5]#, df[6]
     
     def get_best_params(self):
         return self.best_params
@@ -273,11 +278,11 @@ if __name__=='__main__':
          
          'alpha_a':0.05,
          'beta_a':0.0075,
-         'gamma_a':0.0005,
          
          'alpha_b':0.1,
          'beta_b':0.05,
-         'gamma_b':0.0005
+         
+         'gamma':0.0005
          }
     
     solver = SIRD()
@@ -292,11 +297,12 @@ if __name__=='__main__':
     # model = SIRD_deepxde_net(t, wsol)
     model = SIRD_deepxde_net(t, sird,
                              alpha_a=s['alpha_a'], beta_a=s['beta_a'],
-                             alpha_b=s['alpha_b'], beta_b=s['beta_b'])
-    model.init_model(print_every=1000)
-    model.train_model(iterations=15000, print_every=1000)
+                             alpha_b=s['alpha_b'], beta_b=s['beta_b'],
+                             gamma=s['gamma'])
+    model.init_model(print_every=1, lr=0.01)
+    model.train_model(iterations=5000, print_every=1000)
     
-    alpha_a_nn, alpha_b_nn, beta_a_nn, beta_b_nn, g_a_nn, g_b_nn = model._get_best_params()
+    alpha_a_nn, alpha_b_nn, beta_a_nn, beta_b_nn, gamma = model._get_best_params()
     
     s_new = {'S':5000000,
              'I_a':50,
@@ -306,11 +312,11 @@ if __name__=='__main__':
              
              'alpha_a':alpha_a_nn,
              'beta_a':beta_a_nn,
-             'gamma_a':g_a_nn,
              
              'alpha_b':alpha_b_nn,
              'beta_b':beta_b_nn,
-             'gamma_b':g_b_nn
+             
+             'gamma':gamma
              }
     
     
@@ -341,5 +347,7 @@ if __name__=='__main__':
         ax.set_axisbelow(True)
     ax.legend()
     plt.tight_layout()
+    
+    dde.saveplot(model.losshistory, model.train_state, issave=False, isplot=True)
     
     
