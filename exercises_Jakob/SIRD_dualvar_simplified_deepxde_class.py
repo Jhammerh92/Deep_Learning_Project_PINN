@@ -145,14 +145,19 @@ class Plot:
 
 class SIRD_deepxde_net:
     def __init__(self, t, wsol, alpha_guess=1.0, beta_guess=0.1, gamma_guess=0.1,
-                 with_neumann=False):
+                 with_neumann=False,
+                 model_name=""):
+        self.model_name = model_name
         self.t, self.wsol = t, wsol
         S_sol, I_sol, R_sol, D_sol = wsol[:,0], wsol[:,1], wsol[:,2], wsol[:,3]
-        init_num_people = np.sum(wsol[0,:])
+        init_num_people = np.sum(wsol[0,:]) # sum up the first row for the t
         self.init_num_people = init_num_people
         S_sol, I_sol, R_sol, D_sol = S_sol/init_num_people, I_sol/init_num_people,  R_sol/init_num_people, D_sol/init_num_people
         
-        timedomain = dde.geometry.TimeDomain(0, max(t))
+
+        geom = dde.geometry.Interval(0, 1) # init_num_people normalized
+        timedomain = dde.geometry.TimeDomain(0, max(t)) # NORMALIZE TIME ?
+        geomtime = dde.geometry.GeometryXTime(geom, timedomain)
         
         self.alpha_a = dde.Variable(alpha_guess)
         # self.alpha_aa = dde.Variable(alpha_guess)#alpha_a*0.5 # can be made variables later
@@ -200,22 +205,19 @@ class SIRD_deepxde_net:
             # gamma_b  = torch.sqrt(self.gamma_b**2)
 
             # enforce positive values
-            alpha_a  = (self.alpha_a)/(self.tau_a)
-            alpha_b  = (self.alpha_b)/(self.tau_b)
+            alpha_a  = (self.alpha_a)
+            alpha_b  = (self.alpha_b)
             # implement later here
-            alpha_aa = (self.alpha_a)*0.0
-            alpha_bb = (self.alpha_b)*0.0
-            alpha_ba = (self.alpha_a)*0.0
-            alpha_ab = (self.alpha_b)*0.0
+            alpha_aa = (self.alpha_a)*0.5
+            alpha_bb = (self.alpha_b)*0.5
+            alpha_ba = (self.alpha_a)*0.9
+            alpha_ab = (self.alpha_b)*0.9
 
-            beta_a   = (self.alpha_a)/(self.tau_a**2)
-            beta_b   = (self.alpha_b)/(self.tau_b**2)
+            beta_a   = (self.alpha_a)/(self.tau_a)
+            beta_b   = (self.alpha_b)/(self.tau_b)
 
             gamma_a  = (self.gamma_a)
             gamma_b  = (self.gamma_b)
-
-            
-
 
 
             I_A = (I_a + I_aa + I_ba)
@@ -235,12 +237,12 @@ class SIRD_deepxde_net:
 
             #dette skal koges ned to en SIRD model..
 
-            sird = [expanded_sird[0],
-                    sum(expanded_sird[1:7]),
-                    sum(expanded_sird[7:10]), 
-                    expanded_sird[-1]]
+            # sird = [expanded_sird[0],
+            #         sum(expanded_sird[1:7]),
+            #         sum(expanded_sird[7:10]), 
+            #         expanded_sird[-1]]
             
-            return sird
+            return expanded_sird
 
         
         def boundary(t_inp, on_initial):
@@ -253,12 +255,12 @@ class SIRD_deepxde_net:
         known_points = []
         
         # Initial conditions
-        ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
-        ic_I = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
-        ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=2)
-        ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=3)
+        # ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
+        # ic_I = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
+        # ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=2)
+        # ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=3)
         
-        known_points += [ic_S, ic_I, ic_R, ic_D]
+        # known_points += [ic_S, ic_I, ic_R, ic_D]
         
         # Test points
         # TODO - how do we weight right points higher than earlier points?
@@ -270,9 +272,9 @@ class SIRD_deepxde_net:
         D_sol_later = D_sol[select_points_after_bool]
         
         observe_S = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), S_sol_later.reshape(len(S_sol_later), 1), component=0)
-        observe_I = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), I_sol_later.reshape(len(I_sol_later), 1), component=1)
-        observe_R = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), R_sol_later.reshape(len(R_sol_later), 1), component=2)
-        observe_D = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), D_sol_later.reshape(len(D_sol_later), 1), component=3)
+        observe_I = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), I_sol_later.reshape(len(I_sol_later), 1), component=list(range(1,6+1)))
+        observe_R = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), R_sol_later.reshape(len(R_sol_later), 1), component=list(range(7,9+1)))
+        observe_D = dde.icbc.PointSetBC(t_later.reshape(len(t_later), 1), D_sol_later.reshape(len(D_sol_later), 1), component=10)
         
         known_points += [observe_S,
                          observe_I,
@@ -280,12 +282,12 @@ class SIRD_deepxde_net:
                          observe_D]
         
         # Final conditions
-        fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
-        fc_I = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
-        fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=2)
-        fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=3)
+        # fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
+        # fc_I = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
+        # fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=2)
+        # fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=3)
         
-        known_points += [fc_S, fc_I, fc_R, fc_D]
+        # known_points += [fc_S, fc_I, fc_R, fc_D]
         
         # Neumann
         if with_neumann:
@@ -313,11 +315,12 @@ class SIRD_deepxde_net:
             
             known_points += [fc_n_S, fc_n_I, fc_n_R, fc_n_D, ic_n_S, ic_n_I, ic_n_R, ic_n_D]
         
-        self.data = dde.data.PDE(
+        # self.data = dde.data.PDE(
+        self.data = dde.data.TimePDE(
             timedomain,
             pde,
             known_points,
-            num_domain=50,
+            num_domain=300,
             num_boundary=10,
             anchors=t.reshape(len(t), 1),
         )
@@ -336,8 +339,9 @@ class SIRD_deepxde_net:
     
     def init_model(self, layer_size=None, activation="tanh", initializer="Glorot uniform", 
                    lr=0.01, optimizer="adam", print_every=100):
+
         if layer_size is None:
-            layer_size = [1] + [32] * 4 + [11]
+            layer_size = [1] + [32] * 2 + [11]
         
         net = dde.nn.FNN(layer_size, activation, initializer)
         
@@ -352,28 +356,41 @@ class SIRD_deepxde_net:
                            #,loss_weights=[0.5,0.5,0.5,0.5,1,1,1,1]
                       )
         
-        self.variable = dde.callbacks.VariableValue(self.variables, period=print_every, filename='variables.txt')
+        self.variable = dde.callbacks.VariableValue(self.variables, period=print_every, filename=f'variables_{self.model_name}.txt', precision=5)
     
-    def train_model(self, iterations=7500, print_every=1000):
+
+    def train_model(self, iterations=7500, print_every=1000, use_LBFGSB=False):
         self.losshistory, self.train_state = self.model.train(iterations=iterations, 
                                                               callbacks=[self.variable],
                                                               display_every=print_every)
         # self.alpha_nn, self.beta_nn, self.gamma_nn = self.variable.get_value()
+
+        if use_LBFGSB:
+            print("optimizing with L-BFGS-B")
+            self.model.compile("L-BFGS-B")
+            losshistory, train_state = self.model.train()
+
         self._get_best_params()
         self._best_nn_prediction()
     
     def _get_best_params(self):
-        df = pd.read_csv('variables.txt', header=None, delimiter=' ', index_col=0)
+        df = pd.read_csv(f'variables_{self.model_name}.txt', header=None, delimiter=' ', index_col=0)
         # lav et loop af en art?
         # for i, d in enumerate(df):
         #     df[i] = d.str[1:-1].astype('float')
 
-        df[1] = np.sqrt(df[1].str[1:-1].astype('float')**2)
-        df[2] = np.sqrt(df[2].str[:-1].astype('float')**2)
-        df[3] = np.sqrt(df[3].str[:-1].astype('float')**2)
-        df[4] = np.sqrt(df[4].str[:-1].astype('float')**2)
-        df[5] = np.sqrt(df[5].str[:-1].astype('float')**2)
-        df[6] = np.sqrt(df[6].str[:-1].astype('float')**2)
+        # df[1] = np.sqrt(df[1].str[1:-1].astype('float')**2)
+        # df[2] = np.sqrt(df[2].str[:-1].astype('float')**2)
+        # df[3] = np.sqrt(df[3].str[:-1].astype('float')**2)
+        # df[4] = np.sqrt(df[4].str[:-1].astype('float')**2)
+        # df[5] = np.sqrt(df[5].str[:-1].astype('float')**2)
+        # df[6] = np.sqrt(df[6].str[:-1].astype('float')**2)
+        df[1] = (df[1].str[1:-1].astype('float'))
+        df[2] = (df[2].str[:-1].astype('float'))
+        df[3] = (df[3].str[:-1].astype('float'))
+        df[4] = (df[4].str[:-1].astype('float'))
+        df[5] = (df[5].str[:-1].astype('float'))
+        df[6] = (df[6].str[:-1].astype('float'))
         df = df.loc[self.train_state.best_step]
         # self.best_alpha_nn, self.best_beta_nn, self.best_gamma_nn = df[1], df[2], df[3]
 
