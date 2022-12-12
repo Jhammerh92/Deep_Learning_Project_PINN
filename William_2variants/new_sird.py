@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import deepxde as dde
 import pandas as pd
+import torch
 
 class SIRD:
     def __init__(self):
@@ -68,7 +69,7 @@ class SIRD:
                       atol=abserr, rtol=relerr)
         return t, wsol
     
-    def plot_SIRD(self, t, wsol, ax=None, title=None):
+    def plot_SIRD(self, t, wsol, ax=None, title=None,set_xlabel=True):
         # print("total ",(wsol[-1,:]) )
         # print("total ",np.sum(wsol[-1,:]) )
         if ax is None:
@@ -81,28 +82,99 @@ class SIRD:
         R = wsol[:,3]
         D = wsol[:,4]
         
-        ax.plot(t, S, label='S')
-        ax.plot(t, I_a, label='I_a')
-        ax.plot(t, I_b, label='I_b')
-        ax.plot(t, I, alpha=0.5, linestyle='--', label='I')        
-        ax.plot(t, R, label='R')
-        ax.plot(t, D, label='D')
+        ax.plot(t, S, label='S', color='C0')
+        ax.plot(t, I_a, label='I$_a$', linestyle='--',color='C4')
+        ax.plot(t, I_b, label='I$_b$', linestyle='--',color='C5')
+        ax.plot(t, I, label='I',color='C1')        
+        ax.plot(t, R, label='R',color='C2')
+        ax.plot(t, D, label='D',color='C3')
         
         ax.legend()
-        ax.grid()
+        ax.grid(linestyle=':') #
+        ax.set_axisbelow(True)
         # # self._axis_SIRD(ax)
         if title is not None:
             ax.set_title(title)
+        if set_xlabel:
+            ax.set_xlabel('Time [day]')
+        ax.set_ylabel('Number of people')
+        
+    def plot_SRD(self, t_true, wsol_true, wsol_pred, ax=None, title=None,set_xlabel=True):
+        if ax is None:
+            fig, ax = plt.subplots()
+        
+        S_true = wsol_true[:,0]
+        R_true = wsol_true[:,3]
+        D_true = wsol_true[:,4]
+        
+        ax.plot(t, S_true, label='True', color='C0')
+        ax.plot(t, R_true, color='C2')
+        ax.plot(t, D_true, color='C3')
+        
+        S_pred = wsol_pred[:,0]
+        R_pred = wsol_pred[:,3]
+        D_pred = wsol_pred[:,4]
+        
+        linestyle='--'
+        ax.plot(t, S_pred, linestyle=linestyle, label='Predicted', color='C0')
+        ax.plot(t, R_pred, linestyle=linestyle, color='C2')
+        ax.plot(t, D_pred, linestyle=linestyle, color='C3')
+        
+        ax.legend()
+        ax.grid(linestyle=':') #
+        ax.set_axisbelow(True)
+        # # self._axis_SIRD(ax)
+        if title is not None:
+            ax.set_title(title)
+        if set_xlabel:
+            ax.set_xlabel('Time [day]')
+        ax.set_ylabel('Number of people')
+    
+    def plot_I(self, t_true, wsol_true, wsol_pred, ax=None, title=None,set_xlabel=True,
+               linewidth_true=1.5, linewidth_pred=1):
+        if ax is None:
+            fig, ax = plt.subplots()
+        
+        Ia_true = wsol_true[:,1]
+        Ib_true = wsol_true[:,2]
+        I_true = Ia_true + Ib_true
+        
+        ax.plot(t, I_true, label='I', color='C1',
+                linewidth=linewidth_true)
+        ax.plot(t, Ia_true, label='I$_a$',linestyle='-', color='C2',
+                linewidth=linewidth_true)
+        ax.plot(t, Ib_true, label='I$_b$',linestyle='-', color='C3',
+                linewidth=linewidth_true)
+        
+        Ia_pred = wsol_pred[:,1]
+        Ib_pred = wsol_pred[:,2]
+        I_pred = Ia_pred + Ib_pred
+        
+        ax.plot(t, I_pred, linestyle='--', color='C1',
+                linewidth=linewidth_pred)
+        ax.plot(t, Ia_pred, linestyle='--', color='C2',
+                linewidth=linewidth_pred)
+        ax.plot(t, Ib_pred, linestyle='--', color='C3',
+                linewidth=linewidth_pred)
+        
+        ax.legend()
+        ax.grid(linestyle=':') #
+        ax.set_axisbelow(True)
+        # # self._axis_SIRD(ax)
+        if title is not None:
+            ax.set_title(title)
+        if set_xlabel:
+            ax.set_xlabel('Time [day]')
+        ax.set_ylabel('Number of people')
 
 class SIRD_deepxde_net:
-    def __init__(self, t, wsol, alpha_a=0.1, alpha_b=0.1,
+    def __init__(self, t, wsol, init_num_people, alpha_a=0.1, alpha_b=0.1,
                  beta_a=0.01, beta_b=0.01,
                  gamma=0.001):
         self.t, self.wsol = t, wsol
         S_sol, I_sol, R_sol, D_sol = wsol[:,0], wsol[:,1], wsol[:,2], wsol[:,3]
-        init_num_people = np.sum(wsol[0,:])
-        self.init_num_people = init_num_people
         S_sol, I_sol, R_sol, D_sol = S_sol/init_num_people, I_sol/init_num_people, R_sol/init_num_people, D_sol/init_num_people
+        self.init_num_people = init_num_people
         
         timedomain = dde.geometry.TimeDomain(0, max(t))
         
@@ -149,12 +221,13 @@ class SIRD_deepxde_net:
         known_points = []
         
         # Initial conditions
-        # ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
-        # ic_I = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
-        # ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=2)
-        # ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=3)
+        ic_S = dde.icbc.IC(timedomain, lambda X: torch.tensor(S_sol[0]).reshape(1,1), boundary, component=0)
+        ic_Ia = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=1)
+        ic_Ib = dde.icbc.IC(timedomain, lambda X: torch.tensor(I_sol[0]).reshape(1,1), boundary, component=2)
+        ic_R = dde.icbc.IC(timedomain, lambda X: torch.tensor(R_sol[0]).reshape(1,1), boundary, component=3)
+        ic_D = dde.icbc.IC(timedomain, lambda X: torch.tensor(D_sol[0]).reshape(1,1), boundary, component=4)
         
-        # known_points += [ic_S, ic_I, ic_R, ic_D]
+        known_points += [ic_S, ic_Ia, ic_Ib, ic_R, ic_D]
         
         # Test points
         observe_S = dde.icbc.PointSetBC(t.reshape(len(t), 1), S_sol.reshape(len(S_sol), 1), component=0)
@@ -169,18 +242,19 @@ class SIRD_deepxde_net:
                          observe_D]
         
         # Final conditions
-        # fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
-        # fc_I = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
-        # fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=2)
-        # fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=3)
+        fc_S = dde.DirichletBC(timedomain, lambda X: torch.tensor(S_sol[-1]).reshape(1,1), boundary_right, component=0)
+        fc_Ia = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=1)
+        fc_Ib = dde.DirichletBC(timedomain, lambda X: torch.tensor(I_sol[-1]).reshape(1,1), boundary_right, component=2)
+        fc_R = dde.DirichletBC(timedomain, lambda X: torch.tensor(R_sol[-1]).reshape(1,1), boundary_right, component=3)
+        fc_D = dde.DirichletBC(timedomain, lambda X: torch.tensor(D_sol[-1]).reshape(1,1), boundary_right, component=4)
         
-        # known_points += [fc_S, fc_I, fc_R, fc_D]
+        known_points += [fc_S, fc_Ia, fc_Ib, fc_R, fc_D]
         
         self.data = dde.data.PDE(
             timedomain,
             pde,
             known_points,
-            num_domain=600,
+            num_domain=4000,
             num_boundary=10,
             anchors=t.reshape(len(t), 1),
         )
@@ -209,7 +283,7 @@ class SIRD_deepxde_net:
                            ,external_trainable_variables=self.variables
                             # ,loss_weights=[1,1,1,1,
                             #                1,1,1,1]
-                            ,with_softadapt=True
+                            # ,with_softadapt=True
                       )
         
         self.variable = dde.callbacks.VariableValue(self.variables, period=print_every, filename='variables.txt')
@@ -295,12 +369,14 @@ if __name__=='__main__':
     sird = np.c_[S,I,R,D]
     
     # model = SIRD_deepxde_net(t, wsol)
-    model = SIRD_deepxde_net(t, sird,
+    model = SIRD_deepxde_net(t, sird, init_num_people=sird[0].sum(),
                              alpha_a=s['alpha_a'], beta_a=s['beta_a'],
                              alpha_b=s['alpha_b'], beta_b=s['beta_b'],
                              gamma=s['gamma'])
-    model.init_model(print_every=1, lr=0.01)
-    model.train_model(iterations=5000, print_every=1000)
+    
+    layer_size = [1] + [32] * 2 + [5]
+    model.init_model(print_every=1, lr=0.01, layer_size=layer_size)
+    model.train_model(iterations=10000, print_every=1000)
     
     alpha_a_nn, alpha_b_nn, beta_a_nn, beta_b_nn, gamma = model._get_best_params()
     
@@ -322,8 +398,19 @@ if __name__=='__main__':
     
     t_nn_param, wsol_nn_param = solver.solve_SIRD(s_new)
     
-    solver.plot_SIRD(t, wsol, title='Train data')
-    solver.plot_SIRD(t_nn_param, wsol_nn_param, title='Prediction')
+    fig, axes = plt.subplots(2,1,dpi=300, figsize=(10,6),
+                             sharex=True,constrained_layout=False)
+    solver.plot_SRD(t, wsol, wsol_nn_param, title='Two strains', ax=axes[0],set_xlabel=False)
+    solver.plot_I(t, wsol, wsol_nn_param, ax=axes[1])
+    plt.subplots_adjust(hspace=0.12)
+    plt.savefig('Two_strains',bbox_inches='tight')
+    
+    
+    # fig, axes = plt.subplots(2,1,dpi=300, figsize=(10,6),sharex=True)
+    # solver.plot_SIRD(t, wsol, title='Two strains train data', ax=axes[0],set_xlabel=False)
+    # solver.plot_SIRD(t_nn_param, wsol_nn_param, title='Two strains prediction', ax=axes[1])
+    # plt.tight_layout()
+    # plt.savefig('Two_strains',bbox_inches='tight')
     
     sirds = []
     for w in [wsol, wsol_nn_param]:
@@ -347,6 +434,7 @@ if __name__=='__main__':
         ax.set_axisbelow(True)
     ax.legend()
     plt.tight_layout()
+    
     
     dde.saveplot(model.losshistory, model.train_state, issave=False, isplot=True)
     
