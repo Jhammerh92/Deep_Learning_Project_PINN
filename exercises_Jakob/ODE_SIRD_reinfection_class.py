@@ -162,7 +162,7 @@ class SIRD2VAR:
     def get_wsol_as_SIRD(self):
         _, wsol = self.get_wsol()
         S = wsol[:,0]
-        I = np.sum(wsol[:,1:6], axis=1)
+        I = np.sum(wsol[:,1:7], axis=1) # STOR FEJL HER! 6 SKAL VÆRE 7
         R = np.sum(wsol[:,7:10], axis=1)
         D = wsol[:,-1]
         sird = np.c_[S,I,R,D]
@@ -278,10 +278,10 @@ class SIRD2VAR:
         static_params_temp = {
             "alpha_a": alpha_a/tau_a, # from S to I_a to R_a
             "alpha_b": alpha_b/tau_b, # from S to I_b to R_b
-            "alpha_aa": alpha_a*0.0, # from R_a to I_a to R, reinfection with a from a
-            "alpha_bb": alpha_b*0.0, # from R_b to I_b to R , reinfection with b from b recovered
-            "alpha_ba": alpha_a*0.0, # from R_b to I_a to R , reinfection with a from b recovered
-            "alpha_ab": alpha_b*0.0, # from R_a to I_b to R , reinfection with b from a recovered
+            "alpha_aa": alpha_a*0.5, # from R_a to I_a to R, reinfection with a from a
+            "alpha_bb": alpha_b*0.5, # from R_b to I_b to R , reinfection with b from b recovered
+            "alpha_ba": alpha_a*0.9, # from R_b to I_a to R , reinfection with a from b recovered
+            "alpha_ab": alpha_b*0.9, # from R_a to I_b to R , reinfection with b from a recovered
             "beta_a": beta_a/(tau_a**2), # recovery from I_a
             "beta_b": beta_b/(tau_b**2), # recovery from I_b
             "gamma_a": gamma_a, # death from a
@@ -357,10 +357,10 @@ print(alpha_b, beta_b)
 static_params_1 = {
     "alpha_a": alpha_a, # from S to I_a to R_a
     "alpha_b": alpha_b, # from S to I_b to R_b
-    "alpha_aa": alpha_a * 0,# 0.5, # from R_a to I_a to R, reinfection with a from a
-    "alpha_bb": alpha_b * 0,#0.5, # from R_b to I_b to R , reinfection with b from b recovered
-    "alpha_ba": alpha_a * 0,#0.9, # from R_b to I_a to R , reinfection with a from b recovered
-    "alpha_ab": alpha_b * 0,#0.9, # from R_a to I_b to R , reinfection with b from a recovered
+    "alpha_aa": alpha_a * 0.5,# 0.5, # from R_a to I_a to R, reinfection with a from a
+    "alpha_bb": alpha_b * 0.5,#0.5, # from R_b to I_b to R , reinfection with b from b recovered
+    "alpha_ba": alpha_a * 0.9,#0.9, # from R_b to I_a to R , reinfection with a from b recovered
+    "alpha_ab": alpha_b * 0.9,#0.9, # from R_a to I_b to R , reinfection with b from a recovered
     "beta_a": beta_a, # recovery from I_a
     "beta_b": beta_b, # recovery from I_b
     "gamma_a": 0.0005, # death from a
