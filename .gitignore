@@ -133,3 +133,7 @@ dmypy.json
 grpcio*
 
 variables*
+launch.json
+
+*/old_stuff/
+debug*
