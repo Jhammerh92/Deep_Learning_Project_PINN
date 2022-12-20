@@ -12,14 +12,14 @@ initial_conditions = {
     "Im_b": 0, # should be between 0 and 1
     }
 static_parameters = {
-    "alpha_a": 0.12,
-    "alpha_b": 0.12,
-    "beta_a": 0.08,
+    "alpha_a": 0.23  ,
+    "alpha_b": 0.18,
+    "beta_a": 0.1,
     "beta_b": 0.08,
     "gamma_a": 0.00,
     "gamma_b": 0.00,
-    "kappa_a": 0.2,
-    "kappa_b": 0.2,
+    "kappa_a": 0.8,
+    "kappa_b": 0.5,
     }
 
 #time_delta
@@ -30,7 +30,7 @@ solver = GeneralModelSolver(sirdim) # uses model to solve by new params
 
 
 print(sirdim)
-sirdim.initialize(initial_conditions, static_parameters, [0,20,2000])
+sirdim.initialize(initial_conditions, static_parameters, [0,365])
 # sirdim.initialize(initial_conditions, static_parameters, [0,100,1000])
 
 print(sirdim)
@@ -58,4 +58,8 @@ ax.plot(t_synth, sol_synth[:,-2:])
 ax.legend(sirdim.initial_conditions_keys[-2:])
 # plt.gca().set_prop_cycle(None)
 # plt.plot(t, sol, '--')
+
+# sirdim.plot_solution()
+# sirdim.plot_sird()
+
 plt.show()

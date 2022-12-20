@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 
 
 
-static_parameters = {"alpha": 0.11, #0.13
-                "beta": 0.08, #0.09
+static_parameters = {"alpha": 0.15, #0.13
+                "beta": 0.05, #0.09
                 "gamma": 0.001, #0.001
                 "kappa": 1, # 0.05
                 }
@@ -24,7 +24,7 @@ solver = GeneralModelSolver(sirdim) # uses model to solve by new params
 
 
 print(sirdim)
-sirdim.initialize(initial_conditions, static_parameters, [0,2000])
+sirdim.initialize(initial_conditions, static_parameters, [0,400])
 print(sirdim)
 
 t_synth, sol_synth = sirdim.simulate()
@@ -47,7 +47,7 @@ ax = fig.add_subplot(212)
 ax.set_title("Immunity")
 ax.plot(t_synth, sol_synth[:,-1])
 ax.legend(sirdim.initial_conditions_keys[-1])
-ax.set_ylim([0,1])
+# ax.set_ylim([0,1])
 # plt.gca().set_prop_cycle(None)
 # plt.plot(t, sol, '--')
 plt.show()
