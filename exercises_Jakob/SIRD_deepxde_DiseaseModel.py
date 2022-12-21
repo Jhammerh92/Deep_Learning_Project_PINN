@@ -67,6 +67,8 @@ class SIRD_deepxde_net:
                 init_guess = 10.0
             elif "kappa" in key:
                 init_guess = 0.9
+            elif "n" in key:
+                init_guess = 1e-6
             else:
                 init_guess = 0.5
             if self.use_ln_space:
@@ -89,13 +91,15 @@ class SIRD_deepxde_net:
                 exec(value_string)
                 exec(jacobian_string)
             
-            # TODO make pde's self.param? 
             for i, key in enumerate(self.disease_model.static_parameters_keys):
                 if self.use_ln_space:
                     value_string = key +"="+ f"torch.exp(self.{key})"
                 else:
                     value_string = key +"="+ f"self.{key}"
                 exec(value_string)
+
+            # if hasattr(self, "n"):
+            #         exec("n *= self.init_num_people")
 
             N = self.N
 
@@ -342,10 +346,15 @@ class SIRD_deepxde_net:
         for i in range(1, len(self.variables)+1):
             df[i] = (df[i].str[1*(i == 1):-1].astype('float'))
 
-        self.best_params_tuple = tuple(df.loc[self.train_state.best_step])
+        self.best_params = list(df.loc[self.train_state.best_step])
 
         for i,((key,val), best_val) in enumerate(zip(self.variables_dict.items(), df)):
-            setattr(self, "best_" + key + "_nn", best_val)
+            if "n" in key:
+                self.best_params[i] *= self.disease_model.number_in_population
+            setattr(self, "best_" + key + "_nn", self.best_params[i])
+
+        self.best_params_dict = dict(zip(self.variables_dict.keys(), self.best_params))
+        self.best_params_tuple = tuple(self.best_params)
 
         return df
     

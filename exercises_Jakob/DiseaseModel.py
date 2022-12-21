@@ -50,6 +50,7 @@ class DiseaseModel():
         self._set_pde_equation(pde)
         self._set_sird_groups()
         self.description = description
+        self.number_in_population = self.initial_conditions_values.sum()
 
         self.ALPHA_STD = 0.15
         self.BETA_STD = 0.1
@@ -57,6 +58,7 @@ class DiseaseModel():
         self.LAMBDA_STD = 2.0
         self.TAU_STD = 10.0
         self.KAPPA_STD = 0.5
+        self.N_STD = 50
 
         self.S_STD = 1_000_000
         self.I_STD = 1
@@ -146,6 +148,11 @@ class DiseaseModel():
                 for (key, p_) in zip(self.static_parameters_keys , p):
                     string = key +"="+ str(p_)
                     exec(string)
+
+                # if t < 15 and "n" in self.static_parameters_keys:
+                #     exec("I += n")
+                #     # exec("S -= n")
+
                 N = self.N
                 f = []
                 for equation in pde_eq_as_str_list:
@@ -298,7 +305,7 @@ class DiseaseModel():
         plt.legend()
 
 
-    def plot_with_sliders(self):
+    def plot_with_sliders(self, data=None):
         fig = plt.figure()
         ax = fig.add_subplot(111)
         fig.subplots_adjust(left=0.1, bottom=0.07 + len(self.static_parameters_keys)*0.03, right=0.95, top=0.95)
@@ -321,7 +328,11 @@ class DiseaseModel():
             # print(np.sum(model[1], axis=1))
             return model
 
-        lines = ax.plot(*plot_callback(), linewidth=2)
+        lines = ax.plot(*plot_callback(), linewidth=1)
+        if not(data is None):
+            # ax.plot(len(data), data, ls='--', lw=2, alpha=0.5)
+            for data_ in data.T:
+                ax.scatter(range(len(data_)), data_, alpha=0.5, s=1)
         ax.legend(self.initial_conditions_keys)
 
         sliders_handle = SlidersHandle(plot_callback, self.plot_model.static_parameters, fig, ax, lines)
@@ -351,6 +362,8 @@ class DiseaseModel():
                 std_val = self.TAU_STD
             elif "kappa" in static_param:
                 std_val = self.KAPPA_STD
+            elif "n" in static_param:
+                std_val = self.N_STD
             std_static_parameters[static_param] = std_val
 
         std_initial_conditions = {}
@@ -494,6 +507,32 @@ class SIRD(DiseaseModel):
             "((alpha)/N)*S*I - (beta)*I - (gamma)*I",
             "(beta)*I ",
             "(gamma)*I",
+            ]
+        super().__init__(initial_conditions, static_parameters, pde, time_delta, description)
+
+class SIRDn(DiseaseModel):
+    """ Predefined model of the SIRD model with Susceptible, Infection, Recovered, and Dead, and alpha, beta, gamma as static parameters"""
+    def __init__(self, initial_conditions=None, static_parameters=None, time_delta=None, description=""):
+        description = "The standard SIRD model with Susceptible, Infection, and Removed, and alpha, beta, gamma as static parameters"
+        if initial_conditions is None:
+            initial_conditions = {
+                "S": np.nan,
+                "I": np.nan,
+                "R": np.nan,
+                "D": np.nan,
+                }
+        if static_parameters is None:
+            static_parameters = {
+                "alpha": np.nan,
+                "beta": np.nan,
+                "gamma": np.nan,
+                "n": np.nan
+                }
+        pde = [ 
+            "-((alpha)/N)*(I+n)*S",
+            "((alpha)/N)*S*(I+n) - (beta)*(I+n) - (gamma)*(I+n)",
+            "(beta)*(I+n) ",
+            "(gamma)*(I+n)",
             ]
         super().__init__(initial_conditions, static_parameters, pde, time_delta, description)
 
@@ -684,92 +723,6 @@ class SIRD2VarRelSimple(DualDiseaseModel):
     
 
 
-
-# class SIRD2Var(DiseaseModel):
-#     """ Predefined model with Susceptible, Infection, Recovered,  Dead and Immunity Factor and alpha, beta, gamma, kappa as static parameters"""
-#     def __init__(self, initial_conditions=None, static_parameters=None, time_delta=None, description="", var2_n_introduced_infected=None):
-#         description = "A model that simulates two concurrent diseases and natural herd immunity as a factor of the amount of recovered for each variant"
-#         if initial_conditions is None:
-#             initial_conditions = {
-#                 "S": np.nan,
-#                 "Ia": np.nan,
-#                 "Ib": np.nan,
-#                 "Ra": np.nan,
-#                 "Rb": np.nan,
-#                 "D": np.nan,
-#                 "Im_a": np.nan, # should be between 0 and 1
-#                 "Im_b": np.nan, # should be between 0 and 1
-#                 }
-#         if static_parameters is None:
-#             static_parameters = {
-#                 "alpha_a": np.nan,
-#                 "alpha_b": np.nan,
-#                 "beta_a": np.nan,
-#                 "beta_b": np.nan,
-#                 "gamma_a": np.nan,
-#                 "gamma_b": np.nan,
-#                 "kappa_a": np.nan,
-#                 "kappa_b": np.nan,
-#                 }
-#         pde = [ 
-#             "-(alpha_a/N)*Ia*S  -(alpha_b/N)*Ib*S",
-#             "(alpha_a/N)*S*Ia + (alpha_a/N)*(1 - Im_a)*(Ra + Rb - D)*Ia - beta_a*Ia - gamma_a*Ia",
-#             "(alpha_b/N)*S*Ib + (alpha_b/N)*(1 - Im_b)*(Ra + Rb - D)*Ib - beta_b*Ib - gamma_b*Ib",
-#             "beta_a*Ia - (alpha_a/N)*(1 - (Im_a))*(Ra)*(Ia) - (alpha_b/N)*(1 - (Im_b))*(Ra)*(Ib)",
-#             "beta_b*Ib - (alpha_a/N)*(1 - (Im_a))*(Rb)*(Ia) - (alpha_b/N)*(1 - (Im_b))*(Rb)*(Ib)",
-#             "gamma_a*Ia + gamma_b*Ib",
-#             "kappa_a*beta_a*Ia/N",
-#             "kappa_b*beta_b*Ib/N",
-#             ]
-
-#         self.var2_n_introduced_infected = var2_n_introduced_infected
-
-#         self.var1 = DiseaseModel(initial_conditions, static_parameters, pde, time_delta, description)
-#         self.var2 = DiseaseModel(initial_conditions, static_parameters, pde, time_delta, description)
-        
-#         super().__init__(initial_conditions, static_parameters, pde, time_delta, description)
-
-#     # overwrite the standard simulate function
-#     def simulate(self, numpoints=None, var2_n_introduced_infected=1):
-#         self.var1 = DiseaseModel(self.initial_conditions, self.static_parameters, self.pde_equations_str, self.time_delta, description="")
-#         self.var2 = DiseaseModel(self.initial_conditions, self.static_parameters, self.pde_equations_str, self.time_delta, description="")
-
-#         if len(self.time_delta) == 2:
-#             s = self.time_delta[0]
-#             t = s
-#             e = self.time_delta[1]
-#         else:
-#             s = self.time_delta[0]
-#             t = self.time_delta[1]
-#             e = self.time_delta[2]
-
-#         self.var1.simulate(time_delta=[s, t], numpoints=numpoints)
-#         self.final_conditions_t = self.var1.get_final_condition_dict()
-#         if self.var2_n_introduced_infected == None:
-#             self.var2_n_introduced_infected = var2_n_introduced_infected
-#         self._induce_infected(self.var2_n_introduced_infected)
-#         self.var2.set_new_initial_conditions(self.final_conditions_t)
-#         self.var2.simulate(time_delta=[t, e], numpoints=numpoints)
-
-#         # calculate combined output
-
-#         self.t = np.hstack([self.var1.t, self.var2.t])
-#         combined_model = np.vstack([self.var1.solution, self.var2.solution])
-#         self.solution = combined_model
-#         return self.t, self.solution
-
-#     def initialize(self, initial_conditions, static_parameters, time_delta=None):
-#         super().initialize(initial_conditions, static_parameters, time_delta)
-#         self.var1.initialize(initial_conditions, static_parameters, time_delta)
-#         self.var2.initialize(initial_conditions, static_parameters, time_delta)
-
-
-#     def _induce_infected(self, amount):
-#         self.final_conditions_t['S'] -= amount
-#         self.final_conditions_t['Ib'] += amount
-        
-
-    
 
 
 class GeneralModelSolver:

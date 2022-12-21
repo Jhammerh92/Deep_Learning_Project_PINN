@@ -1,6 +1,7 @@
 import numpy as np
 import copy
 from scipy.stats import norm
+import random
 
 
 class Agent:
@@ -37,19 +38,19 @@ class Agent:
         self.immunity = self.calc_immunity(disease)
         return self.immunity
 
-    def infect(self, other_agent, timestep, roll=None):
+    def infect(self, other_agent, timestep, population_size=1, roll=None):
         #calc infection succes
         # times_infected = other_agent.times_infected.get(self.disease, 0)
         # if other_agent.is_susceptible():
         #     infection_rate = self.disease.alpha
         # else:
-        infection_rate = self.disease.alpha * (1 - other_agent.get_immunity(self.disease))
+        infection_rate = self.disease.alpha/population_size * (1 - other_agent.get_immunity(self.disease))
         if infection_rate == 0.0:
             return
 
         if roll is None:
             roll = np.random.uniform(0, 1)
-        if roll >= infection_rate:
+        if roll > infection_rate:
             return
         
         # if succes pass infection to other
@@ -71,7 +72,7 @@ class Agent:
             # recover_rate = norm.cdf((current_time - self.time_of_infection), loc=1/self.disease.beta, scale=1)
             recover_rate = self.disease.beta
         # recover_rate = self.disease.beta
-        if roll >= recover_rate:
+        if roll > recover_rate:
             return
         self._recover()
 
@@ -115,18 +116,29 @@ class Agent:
 
 class Population:
     """Class that handles the simulated population"""
-    def __init__(self, size, agent_type=Agent):
+    def __init__(self, size=0, agent_type=Agent):
         self.agent_type = agent_type
-        self.agents = [agent_type(i) for i in range(size)]
+        if size > 0:
+            self.init_population(size)
+        else:
+            self.agents = []
+        self.subpopulations =  []
+
+    def init_population(self, size):
+        self.agents = [self.agent_type(i) for i in range(size)]
         self.len = len(self)
         self._set_status() # status is the count of each group
         self._set_agent_id_catalog()
         self.get_infected_idx()
+
         
     def synth_induce_infected(self, idx, disease, timestep=0):
+        # if len(self.subpopulations) > 0:
+        #     for subpop in self.subpopulations:
+        #         subpop.synth_induce_infected(idx, disease, timestep)
+        # else:
         if not isinstance(idx, list):
             idx = list(idx)
-
         for i in idx:
             self[i].infect_with_disease(disease, timestep)
         self._set_status()
@@ -137,27 +149,36 @@ class Population:
         return self.status
 
     def _set_status(self):
+        # if len(self.subpopulations) > 0:
+        #     for subpop in self.subpopulations:
+        #         subpop._set_status()
+        # else:
         self.full_status = np.zeros((self.len,4))
         for i, agent in enumerate(self.agents):
             self.full_status[[i],:] = self.full_status[[i],:] + agent.state
             # self.status += agent.state
         self.status = self.full_status.sum(axis=0)
         self.get_infected_idx()
-        print(self.status)
+        # print(self.status)
 
-    def recover(self, current_time):
-        for i in self.current_infected_idx.ravel():
-            self[i].recover(current_time)
+    def recover_infection(self, current_time):
+        if len(self.subpopulations) > 0:
+            for subpop in self.subpopulations:
+                subpop.recover_infection(current_time)
+        else:
+            for i in self.current_infected_idx:
+                self[i].recover(current_time)
         # self.get_infected_idx()
 
-    def infect(self, infected_agent, timestep):   
-        rolls = np.random.uniform(0, 1, len(self.current_not_infected_idx))
-        for i, roll in zip(self.current_not_infected_idx.ravel() ,rolls): # iterate over not infected
-        # for i in self.current_infected_idx:
-            # if self[i].is_infected(): # should also cover not iterating over itself
-            # if i in self.current_infected_idx.ravel(): # should also cover not iterating over itself
-            #     continue
-            infected_agent.infect(self[i], timestep, roll)
+    def spread_infection(self, timestep, population_size=1):   
+        if len(self.subpopulations) > 0:
+            for subpop in self.subpopulations:
+                subpop.spread_infection(timestep)
+        else:
+            for infected_agent in (self[idx] for idx in self.current_infected_idx):
+                rolls = np.random.uniform(0, 1, len(self.current_not_infected_idx))
+                for i, roll in zip(self.current_not_infected_idx ,rolls): # iterate over not infected
+                    infected_agent.infect(self[i], timestep, self.len, roll)
 
         # self.get_infected_idx()
 
@@ -168,16 +189,17 @@ class Population:
         #     if self[i].is_infected():
         #         self.current_infected_idx.append(i)
         # try:
-        self.current_infected_idx = np.argwhere(self.full_status[:,1])
-        self.current_not_infected_idx = np.argwhere(self.full_status[:,1] == 0)
+        self.current_infected_idx = set((np.argwhere(self.full_status[:,1])).ravel())
+        self.current_not_infected_idx = set((np.argwhere(self.full_status[:,1] == 0)).ravel())
 
         # except:
         #     pass
         # _, self.current_infected_idx = np.argwhere(self.full_status[:,1])
 
     def get_infected_iter(self):
-        for i in self.current_infected_idx.ravel():
-            yield self[i]
+        return (self[i] for i in self.current_infected_idx)
+        # for i in self.current_infected_idx:
+        #     yield self[i]
 
     def mix_population():
         # reset id_catalog
@@ -201,6 +223,60 @@ class Population:
         for i in range(len(self)):
             self.id_catalog[i] = [i, self[i].id]
 
+    def add_subpopulation(self, subpopulation):
+        self.subpopulations.append(subpopulation)
+
+    
+    def fill_subpopulations(self, agents=None):
+        if agents == None:
+            agents = self.agents
+        shuffled_idx = random.sample(list(range(self.len)), self.len)
+        for i, subpop in enumerate(self.subpopulations):
+            sub_shuffled_idx = shuffled_idx[subpop.N_max * i : subpop.N_max * (i + 1) ]
+            subpop.add_agents([agents[idx] for idx in sub_shuffled_idx])
+            # subpop.init_subpopulation()
+
+
+    def remix_subpopulations(self):
+        if len(self.subpopulations) == 0:
+            return
+        returned_agents = []
+        # idx_id = []
+        for subpop in self.subpopulations:
+            subpop_return = subpop.return_subpopulation()
+            # idx_id.extend(subpop_return)
+            returned_agents.extend(subpop_return)
+
+        self.fill_subpopulations(returned_agents)
+        self.agents = returned_agents
+
+
+
+
+class Subpopulation(Population):
+    def __init__(self, N_max):
+        self.N_max = N_max
+        # self.agents = []
+        super().__init__()
+
+    def init_subpopulation(self):
+        self.len = len(self)
+        self._set_status() # status is the count of each group
+        self._set_agent_id_catalog()
+        self.get_infected_idx()
+
+    def return_subpopulation(self):
+        # for idx_id, agent in zip(self.id_catalog, self.agents): # why make it a iter?
+        #     yield idx_id, agent 
+        agents = self.agents
+        self.agents = []
+        # self.init_subpopulation()
+        return agents
+    
+    def add_agents(self, agent):
+        self.agents.extend(agent)
+        self.init_subpopulation()
+
 
     
 class Disease():
@@ -215,10 +291,21 @@ class Disease():
 class DiseaseSimulator:
     """Simulate a spreading epidemic by a simulated population"""
     def __init__(self) -> None:
-        self.population = Population(10000)
+        self.population = Population(1000)
         self.size = len(self.population)
-        self.disease_a = Disease("A", 0.15/self.size , 0.10)
-        self.disease_b = Disease("B", 0.115/self.size , 0.11)
+        self.disease_a = Disease("A", 0.2 , 0.10)
+        self.disease_b = Disease("B", 0.15 , 0.12)
+
+        self.population.synth_induce_infected(list(range(1)), self.disease_a)
+        self.population.synth_induce_infected(list(range(1)), self.disease_b)
+
+        if True: # if use_subpopulations:
+            self.max_contact_n = 100
+            self.N_subpopulations = (self.size-1) // self.max_contact_n + 1 
+            for i in range(self.N_subpopulations):
+                self.population.add_subpopulation(Subpopulation(self.max_contact_n))
+
+            self.population.fill_subpopulations()
 
     def __call__(self, *args):
         return self.run_simulation(*args)
@@ -228,7 +315,7 @@ class DiseaseSimulator:
         self.simulation = np.full((timesteps, 4), np.nan)
         self.time = np.arange(timesteps).reshape(-1,1)
 
-        self.population.synth_induce_infected(list(range(1)), self.disease_a)
+        
 
         # status = self.population.get_status()
 
@@ -238,14 +325,17 @@ class DiseaseSimulator:
             ax.set_xlim([0,timesteps])
             ax.set_ylim([0,self.size])
         for time in self.time:
-            for infected_agent in self.population.get_infected_iter():
+            # for infected_agent in self.population.get_infected_iter():
                 # limit infection by creating sub populations.
-                self.population.infect(infected_agent, time)
-            self.population.recover(time)
+    
+            self.population.spread_infection(time)
+            self.population.recover_infection(time)
+
+            self.population.remix_subpopulations()
             # population.kill()
 
             # if time == 100:
-                # self.population.synth_induce_infected([10, 11, 12], self.disease_b, time)
+            #     self.population.synth_induce_infected([10], self.disease_b, time)
 
 
 
@@ -258,7 +348,7 @@ class DiseaseSimulator:
                 for line, sim_data in zip(lines, self.simulation.T):
                     line.set_data(self.time, sim_data)
                 plt.pause(0.000000001)
-            print(f"Timestep: {time}\r", end="")
+            print(f"Timestep: {time} Status: {status}\r", end="")
             # print("\n")q
 
         return self.time, self.simulation
@@ -272,7 +362,7 @@ if __name__ == "__main__":
     disease_simulator = DiseaseSimulator()
     time, simulation = disease_simulator.run_simulation(plot=True)
 
-    np.save("SIRD_sim_data", simulation)
+    np.save("SIRD_sim_data_test", simulation)
     # plt.plot(time, simulation)
     # plt.legend(['S','I','R','D'])
     plt.show()
